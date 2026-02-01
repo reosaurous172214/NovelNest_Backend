@@ -1,111 +1,163 @@
+import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import User from "../models/User.js";
+
+/* ================= REGISTER ================= */
 export const registerUser = async (req, res) => {
-    const { username, email, password, role } = req.body;
-    try {
-        const existingUser = await
-            User.findOne({ $or: [{ email }, { username }] });
-        if (existingUser) {
-            return res.status(400).json({ message: "User already exists" });
-        }
-        const hashedPassword = await bcrypt.hash(password, 12);
-        // save profile picture by date and time to avoid overwriting
-        const profilePicture = req.file? `/utilities/${req.file.filename}` : null;
-        const newUser = new User({
-            profilePicture,
-            username,
-            email,
-            password: hashedPassword,
-            role
-        });
-        await newUser.save();
-        const token = jwt.sign(
-            { id: newUser._id, username: newUser.username, role: newUser.role },
-            process.env.JWT_SECRET,
-            { expiresIn: "1h" }
-        );
-        res.status(200).json({
-      token,
-    });
-    } catch (error) {
-        res.status(500).json({ message: "Server error" });
-    }
-};
-export const loginUser = async (req, res) => {
-  const { email, password } = req.body;
-
   try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: "Invalid credentials" });
+    const { name, username, email, password } = req.body;
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
+    // Check existing user
+    const exists = await User.findOne({ email });
+    if (exists) return res.status(400).json({ message: "User already exists" });
 
-    const token = jwt.sign(
-      { id: user._id, username: user.username, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+    const hashed = await bcrypt.hash(password, 10);
 
-    res.status(200).json({
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        profilePicture: `http://localhost:5000${user.profilePicture}`,
-        role: user.role
-      }
+    const user = await User.create({
+      name,
+      username,
+      email,
+      password: hashed,
+      profilePicture: req.file ? `/utilities/${req.file.filename}` : null,
     });
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+    res.status(201).json({ token });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
-
-export const updateUserProfile = async (req, res) => {
-  const { username, bio, favoriteGenre, password } = req.body;
-  
+/* ================= LOGIN ================= */
+export const loginUser = async (req, res) => {
   try {
-    // 1. Find user by ID (from your auth middleware)
+    console.log("Login request body:", req.body);
+
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password required" });
+    }
+
+    const user = await User.findOne({ email });
+    console.log("Found user:", user);
+    if (!user) return res.status(400).json({ message: "Invalid credentials" });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    console.log("Password match:", isMatch);
+    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
+
+    if (!process.env.JWT_SECRET) {
+      console.error("JWT_SECRET not defined!");
+      return res.status(500).json({ message: "Server misconfiguration" });
+    }
+
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    res.json({ token, user });
+  } catch (err) {
+    console.error("Login error full:", err);
+    res.status(500).json({ message: "Server error during login" });
+  }
+};
+
+  
+/* ================= GET LOGGED-IN USER ================= */
+export const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .select("-password");
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch profile" });
+  }
+};
+
+/* ================= UPDATE PROFILE ================= */
+export const updateUserProfile = async (req, res) => {
+  try {
     const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    // 2. Handle Profile Picture Logic
-    // Only update if a new file was actually uploaded
-    if (req.file) {
-      user.profilePicture = `/utilities/${req.file.filename}`;
-    }
+    // BASIC INFO
+    user.username = req.body.username ?? user.username;
+    user.bio = req.body.bio ?? user.bio;
+    user.mobile = req.body.mobile ?? user.mobile;
 
-    // 3. Update Text Fields (Only if provided)
-    if (username) user.username = username;
-    if (bio !== undefined) user.bio = bio;
-    if (favoriteGenre) user.favoriteGenres = favoriteGenre;
+    // LOCATION
+    user.location = {
+      country: req.body.country ?? user.location?.country,
+      state: req.body.state ?? user.location?.state,
+      city: req.body.city ?? user.location?.city,
+      timezone: req.body.timezone ?? user.location?.timezone,
+    };
 
-    // 4. Handle Password Security
-    if (password && password.trim().length > 0) {
-      const salt = await bcrypt.genSalt(12);
-      user.password = await bcrypt.hash(password, salt);
-    }
+    // PREFERENCES
+    user.preferences = {
+      theme: req.body.theme ?? user.preferences?.theme ?? "light",
+      language: req.body.language ?? user.preferences?.language ?? "en",
+      matureContent: req.body.matureContent ?? user.preferences?.matureContent ?? false,
+      notifications: req.body.notifications ?? user.preferences?.notifications ?? true,
+    };
 
-    // 5. Persist to Database
-    const updatedUser = await user.save();
+    // PROFILE PICTURE
+    if (req.file) user.profilePicture = `/utilities/${req.file.filename}`;
 
-    // 6. Return Clean Object
-    // Remove password from response for security
-    const userResponse = updatedUser.toObject();
-    delete userResponse.password;
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: "Profile update failed" });
+  }
+};
 
-    res.status(200).json({ 
-      message: "Profile synchronized successfully", 
-      user: userResponse 
-    });
+/* ================= UPDATE PRIVACY ================= */
+export const updatePrivacy = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-  } catch (error) {
-    console.error("Profile Update Error:", error);
-    res.status(500).json({ message: "Failed to synchronize personnel records" });
+    user.privacy = {
+      showEmail: req.body.showEmail ?? user.privacy?.showEmail ?? false,
+      showMobile: req.body.showMobile ?? user.privacy?.showMobile ?? false,
+      showLocation: req.body.showLocation ?? user.privacy?.showLocation ?? true,
+    };
+
+    await user.save();
+    res.json(user.privacy);
+  } catch (err) {
+    res.status(500).json({ message: "Privacy update failed" });
+  }
+};
+
+/* ================= CHANGE PASSWORD ================= */
+export const changePassword = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const { currentPassword, newPassword } = req.body;
+
+    const match = await bcrypt.compare(currentPassword, user.password);
+    if (!match) return res.status(400).json({ message: "Current password incorrect" });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    user.password = hashed;
+
+    await user.save();
+    res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Password change failed" });
+  }
+};
+
+/* ================= READING STATS ================= */
+export const getReadingStats = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json(user.readingStats);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch reading stats" });
   }
 };

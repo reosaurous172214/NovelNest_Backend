@@ -18,48 +18,48 @@ export const getUserHistory = async (req, res) => {
 
 // ADD to history
 
-export const addToUserHistory = async (req, res) => {
-    try {
-        const { novelId, chapterNumber } = req.params;
-        const userId = req.user.id || req.user._id;
+// export const addToUserHistory = async (req, res) => {
+//     try {
+//         const { novelId, chapterNumber } = req.params;
+//         const userId = req.user.id || req.user._id;
 
-        if (!novelId) {
-            return res.status(400).json({ message: "Novel ID required" });
-        }
+//         if (!novelId) {
+//             return res.status(400).json({ message: "Novel ID required" });
+//         }
 
-        // 1. Remove existing entry for this novel to prevent duplicates
-        await User.updateOne(
-            { _id: userId },
-            { $pull: { history: { novel: novelId } } }
-        );
+//         // 1. Remove existing entry for this novel to prevent duplicates
+//         // await User.updateOne(
+//         //     { _id: userId },
+//         //     { $pull: { history: { novel: novelId } } }
+//         // );
 
-        // 2. Atomic push to the front of the array with a limit (slice)
-        const updatedUser = await User.findByIdAndUpdate(
-            userId,
-            {
-                $push: {
-                    history: {
-                        $each: [{
-                            novel: novelId,
-                            lastReadChapter: parseInt(chapterNumber),
-                            viewedAt: new Date()
-                        }],
-                        $position: 0,
-                        $slice: 50 // Optimization: Keep history manageable
-                    }
-                }
-            },
-            { new: true }
-        );
+//         // // 2. Atomic push to the front of the array with a limit (slice)
+//         // await User.findByIdAndUpdate(
+//         //     userId,
+//         //     {
+//         //         $push: {
+//         //             history: {
+//         //                 $each: [{
+//         //                     novel: novelId,
+//         //                     lastReadChapter: parseInt(chapterNumber),
+//         //                     viewedAt: new Date()
+//         //                 }],
+//         //                 $position: 0,
+//         //                 $slice: 50 // Optimization: Keep history manageable
+//         //             }
+//         //         }
+//         //     },
+//         //     { new: true }
+//         // );
 
-        res.status(200).json({ 
-            message: "Archive history synchronized", 
-            lastRead: chapterNumber 
-        });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to update archive history" });
-    }
-};
+//         res.status(200).json({ 
+//             message: "Archive history synchronized", 
+//             lastRead: chapterNumber 
+//         });
+//     } catch (error) {
+//         res.status(500).json({ message: "Failed to update archive history" });
+//     }
+// };
 // REMOVE single history item
 export const removeFromUserHistory = async (req, res) => {
     try {
@@ -109,32 +109,28 @@ export const getUserFavourites = async (req, res) => {
 
 export const addToUserFavourites = async (req, res) => {
     try {
-        const { novelId } = req.body;
+        const { novelId } = req.params;
+        const userId = req.user.id;
 
-        if (!novelId) {
-            return res.status(400).json({ message: "Novel ID required" });
-        }
-
-        const user = await User.findById(req.user.id);
-
-        const exists = user.favourites.some(
-            (item) => item.novel.toString() === novelId
+        // 1. Remove if exists (to prevent duplicates and move to top)
+        await User.updateOne(
+            { _id: userId },
+            { $pull: { favourites: { novel: novelId } } }
         );
 
-        if (exists) {
-            return res.status(409).json({ message: "Already in favourites" });
-        }
-
-        user.favourites.push({
-            novel: novelId,
-            addedAt: new Date()
+        // 2. Push to front
+        await User.findByIdAndUpdate(userId, {
+            $push: {
+                favourites: {
+                    $each: [{ novel: novelId, addedAt: new Date() }],
+                    $position: 0
+                }
+            }
         });
 
-        await user.save();
-
-        res.status(201).json({ message: "Added to favourites" });
+        res.status(200).json({ message: "Saved to your library" });
     } catch (error) {
-        res.status(500).json({ message: "Failed to add favourite" });
+        res.status(500).json({ message: "Failed to update library" });
     }
 };
 
@@ -150,9 +146,9 @@ export const removeFromUserFavourites = async (req, res) => {
 
         await user.save();
 
-        res.status(200).json({ message: "Removed from favourites" });
+        res.status(200).json({ message: "Removed from bookmarks" });
     } catch (error) {
-        res.status(500).json({ message: "Failed to remove favourite" });
+        res.status(500).json({ message: "Failed to remove bookmark" });
     }
 };
 
@@ -182,38 +178,32 @@ export const getUserBookmarks = async (req, res) => {
         res.status(500).json({ message: "Failed to fetch bookmarks" });
     }
 };
-
 export const addToUserBookmarks = async (req, res) => {
     try {
-        const { novelId } = req.body;
+        const { novelId } = req.params;
+        const userId = req.user.id;
 
-        if (!novelId) {
-            return res.status(400).json({ message: "Novel ID required" });
-        }
-
-        const user = await User.findById(req.user.id);
-
-        const exists = user.bookmarks.some(
-            (item) => item.novel.toString() === novelId
+        // 1. Remove if exists (to prevent duplicates and move to top)
+        await User.updateOne(
+            { _id: userId },
+            { $pull: { bookmarks: { novel: novelId } } }
         );
 
-        if (exists) {
-            return res.status(409).json({ message: "Already bookmarked" });
-        }
-
-        user.bookmarks.push({
-            novel: novelId,
-            addedAt: new Date()
+        // 2. Push to front
+        await User.findByIdAndUpdate(userId, {
+            $push: {
+                bookmarks: {
+                    $each: [{ novel: novelId, addedAt: new Date() }],
+                    $position: 0
+                }
+            }
         });
 
-        await user.save();
-
-        res.status(201).json({ message: "Added to bookmarks" });
+        res.status(200).json({ message: "Saved to your library" });
     } catch (error) {
-        res.status(500).json({ message: "Failed to add bookmark" });
+        res.status(500).json({ message: "Failed to update library" });
     }
 };
-
 export const removeFromUserBookmarks = async (req, res) => {
     try {
         const { novelId } = req.params;

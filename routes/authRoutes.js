@@ -1,15 +1,28 @@
 import express from "express";
-import {registerUser, loginUser , updateUserProfile} from "../controllers/authControllers.js";
-import {upload} from "../middleware/upload.js";
+import {
+  registerUser,
+  loginUser,
+  getMe,
+  updateUserProfile,
+  updatePrivacy,
+  changePassword,
+  getReadingStats
+} from "../controllers/authControllers.js";
+
+import { upload } from "../middleware/upload.js";
 import authmiddleware from "../middleware/authMiddleware.js";
+
 const router = express.Router();
 
-// Register
+// AUTH
 router.post("/register", upload.single("profilePicture"), registerUser);
-// Login
 router.post("/login", loginUser);
-//Update User Profile
-router.put("/updateProfile",authmiddleware,upload.single("profilePicture"), updateUserProfile);
 
+// PROFILE
+router.get("/me", authmiddleware, getMe);
+router.put("/updateProfile", authmiddleware, upload.single("profilePicture"), updateUserProfile);
+router.put("/privacy", authmiddleware, updatePrivacy);
+router.put("/changePassword", authmiddleware, changePassword);
+router.get("/stats", authmiddleware, getReadingStats);
 
 export default router;

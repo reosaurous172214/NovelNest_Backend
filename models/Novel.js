@@ -1,26 +1,41 @@
-// models/Novel.js
 import mongoose from "mongoose";
 
 const novelSchema = new mongoose.Schema(
   {
-    title: { type: String, required: true, trim: true, index: true },
-    description: { type: String, maxlength: 5000 },
-    genres: { type: [String], required: true, index: true },
-    tags: { type: [String], index: true },
-    coverImage: { type: String, default: "" },
-    author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    isPublished: { type: Boolean, default: false, index: true },
-    views: { type: Number, default: 0 },
-    rating: { type: Number, default: 0, min: 0, max: 5 },
-    totalChapters: { type: Number, default: 0 },
+    title: { type: String, required: true },
+    description: String,
+    slug: {type: String, unique: true, lowercase: true, index: true},
+    genres: [{ type: String, lowercase: true }],
+    tags: [{ type: String, lowercase: true }],
 
-    // 🚀 NEW FIELD: Pre-calculated similar novel IDs
-    recommendations: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Novel"
-    }]
+    coverImage: String,
+    author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+
+    isPublished: { type: Boolean, default: false },
+
+    status: {
+      type: String,
+      enum: ["ongoing", "completed"],
+      default: "ongoing",
+    },
+
+    totalChapters: { type: Number, default: 0 },
+    rating: { type: Number, default: 0 },
+    views: { type: Number, default: 0 },
+
+    recommendations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Novel" }],
   },
   { timestamps: true }
 );
+novelSchema.pre("validate", function (next) {
+  if (this.title && !this.slug) {
+    this.slug = this.title
+      .toLowerCase()
+      .split(' ')
+      .join('-')
+      .replace(/[^\w-]+/g, '');
+  }
+  next();
+});
 
 export default mongoose.model("Novel", novelSchema);
