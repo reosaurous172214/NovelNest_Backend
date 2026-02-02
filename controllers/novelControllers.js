@@ -1,8 +1,7 @@
 import Novel from "../models/Novel.js";
-import Activity from "../models/Activity.js";
-import { createActivity } from "./activity.controller.js";
-import mongoose from "mongoose";
+import { logActivity } from "../services/activity.service.js";
 import { novelSearchTrie } from "../services/search.service.js";
+
 
 /* ---------------- HELPER ---------------- */
 const normalizeArray = (value) => {
@@ -46,7 +45,7 @@ export const createNovel = async (req, res) => {
       cover: novel.coverImage,
     });
 
-    createActivity({
+    await logActivity({
       userId: req.user.id, // Fixed to req.user.id
       actionType: "CREATE_NOVEL",
       targetType: "NOVEL",
@@ -232,7 +231,7 @@ export const updateNovel = async (req, res) => {
       });
     }
 
-    createActivity({
+    await logActivity({
       userId: req.user.id,
       actionType: "UPDATE_NOVEL",
       targetType: "NOVEL",

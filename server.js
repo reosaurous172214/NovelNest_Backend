@@ -11,7 +11,8 @@ import activityRoutes from "./routes/activity.routes.js";
 import { novelSearchTrie } from "./services/search.service.js";
 import Novel from "./models/Novel.js";
 import searchRoutes from "./routes/search.routes.js";
-import commentRoutes from "./routes/comment.router.js"
+import commentRoutes from "./routes/comment.router.js";
+import notificationRoutes from "./routes/notification.router.js";
 dotenv.config();
 const app = express();
 
@@ -27,6 +28,7 @@ app.use("/api/chapters", chapterRoutes);
 app.use("/api/lib", libRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/comments",commentRoutes);
+app.use("/api/notifications",notificationRoutes);
 app.get("/", (req, res) => {
   res.send("Novel API is running");
 });

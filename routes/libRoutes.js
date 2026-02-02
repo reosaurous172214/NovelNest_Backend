@@ -25,7 +25,7 @@ router.delete("/history/:novelId", protect, removeFromUserHistory);
 // User Favourites Routes
 router.get("/favourites", protect, getUserFavourites);
 router.post("/favourites/add/:novelId", protect, addToUserFavourites);
-router.delete("/favourites/delete/:novelId", protect, removeFromUserFavourites);
+router.delete("/favourites/:novelId", protect, removeFromUserFavourites);
 router.delete("/favourites", protect, clearUserFavourites);
 // User Bookmarks Routes
 router.get("/bookmarks/get", protect, getUserBookmarks);

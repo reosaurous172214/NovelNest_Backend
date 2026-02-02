@@ -1,25 +1,37 @@
 import mongoose from "mongoose";
 
-const NotificationSchema = new mongoose.Schema({
-    recipient: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-        index: true
-    },
-    title: { type: String, required: true },
-    message: { type: String },
-    novelId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Novel',
-    },
-    chapterId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Chapter',
-    },
-    isRead: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now }
+const notificationSchema = new mongoose.Schema({
+  recipient: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  sender: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Can be null for System/Chapter alerts
+  type: {
+    type: String,
+    enum: ["LIKE", "REPLY", "NEW_CHAPTER", "NEW_COMMENT", "MILESTONE"],
+    required: true,
+  },
+  novelId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Novel",
+  },
+  chapterId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Chapter",
+  }, // For new uploads
+  commentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Comment",
+  },
+  isRead: {
+    type: Boolean,
+    default: false,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
-const Notification = mongoose.model("Notification", NotificationSchema);
-export default Notification;
+export default mongoose.model("Notification", notificationSchema);

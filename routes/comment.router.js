@@ -1,12 +1,13 @@
 import express from "express";
-import { 
-    postComment, 
-    getNovelComments, 
-    deleteComment, 
-    voteComment, 
-    postReply 
+import {
+  postComment,
+  getNovelComments,
+  deleteComment,
+  voteComment,
+  postReply,
+  updateComment,
 } from "../controllers/comment.controller.js";
-import protect  from "../middleware/authMiddleware.js";
+import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -15,6 +16,8 @@ router.get("/:novelId", getNovelComments);
 router.post("/", protect, postComment);
 
 router.post("/:id/replies", protect, postReply);
+
+router.put("/:id", protect, updateComment);
 
 router.patch("/:id/vote", protect, voteComment);
 

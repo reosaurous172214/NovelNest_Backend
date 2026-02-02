@@ -32,7 +32,6 @@ export const registerUser = async (req, res) => {
 /* ================= LOGIN ================= */
 export const loginUser = async (req, res) => {
   try {
-    console.log("Login request body:", req.body);
 
     const { email, password } = req.body;
     if (!email || !password) {
@@ -40,7 +39,6 @@ export const loginUser = async (req, res) => {
     }
 
     const user = await User.findOne({ email });
-    console.log("Found user:", user);
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -49,7 +47,7 @@ export const loginUser = async (req, res) => {
 
     if (!process.env.JWT_SECRET) {
       console.error("JWT_SECRET not defined!");
-      return res.status(500).json({ message: "Server misconfiguration" });
+      return res.status(500).json({ message: "Server Error" });
     }
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });

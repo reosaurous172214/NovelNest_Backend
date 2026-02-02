@@ -4,7 +4,6 @@ const novelSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     description: String,
-    slug: {type: String, unique: true, lowercase: true, index: true},
     genres: [{ type: String, lowercase: true }],
     tags: [{ type: String, lowercase: true }],
 
@@ -24,18 +23,13 @@ const novelSchema = new mongoose.Schema(
     views: { type: Number, default: 0 },
 
     recommendations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Novel" }],
+    favoritedBy :[
+      {
+        type : mongoose.Schema.Types.ObjectId, ref : "User"
+      }
+    ]
   },
   { timestamps: true }
 );
-novelSchema.pre("validate", function (next) {
-  if (this.title && !this.slug) {
-    this.slug = this.title
-      .toLowerCase()
-      .split(' ')
-      .join('-')
-      .replace(/[^\w-]+/g, '');
-  }
-  next();
-});
 
 export default mongoose.model("Novel", novelSchema);

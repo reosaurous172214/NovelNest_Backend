@@ -6,22 +6,32 @@ class TrieNode {
         this.novels = []; // Store basic info like {id, title, cover}
     }
 }
+// services/searchService.js
 
 class SearchTrie {
     constructor() {
         this.root = new TrieNode();
     }
 
+    // You were calling this in your controller, but it wasn't defined!
+    reset() {
+        this.root = new TrieNode();
+    }
+
     insert(title, novelInfo) {
         let node = this.root;
-        const word = title.toLowerCase();
+        const word = title.toLowerCase().trim(); // Trim whitespace
         for (const char of word) {
             if (!node.children[char]) node.children[char] = new TrieNode();
             node = node.children[char];
         }
         node.isEndOfWord = true;
-        // Store info to avoid a second DB lookup
-        node.novels.push(novelInfo);
+
+        // Check for duplicates before pushing to prevent identical IDs in the same node
+        const exists = node.novels.find(n => n.id.toString() === novelInfo.id.toString());
+        if (!exists) {
+            node.novels.push(novelInfo);
+        }
     }
 
     suggest(prefix) {
@@ -30,17 +40,24 @@ class SearchTrie {
             if (!node.children[char]) return [];
             node = node.children[char];
         }
-        return this.collectAll(node).slice(0, 10); // Return top 10 results
+        
+        // Use a Set or a Map to ensure global uniqueness across the entire branch
+        const uniqueResults = new Map();
+        this.collectAll(node, uniqueResults);
+        
+        return Array.from(uniqueResults.values()).slice(0, 10);
     }
 
-    collectAll(node, results = []) {
-        if (node.isEndOfWord) results.push(...node.novels);
-        for (const char in node.children) {
-            this.collectAll(node.children[char], results);
+    collectAll(node, uniqueMap) {
+        if (node.isEndOfWord) {
+            node.novels.forEach(novel => {
+                // Keying by ID ensures no duplicates even if found via different paths
+                uniqueMap.set(novel.id.toString(), novel);
+            });
         }
-        return results;
+        for (const char in node.children) {
+            this.collectAll(node.children[char], uniqueMap);
+        }
     }
 }
-
-// Export a single instance (Singleton)
 export const novelSearchTrie = new SearchTrie();

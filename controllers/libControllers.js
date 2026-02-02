@@ -1,3 +1,4 @@
+import Novel from "../models/Novel.js";
 import User from "../models/User.js";
 
 /* ===========================
@@ -6,14 +7,13 @@ import User from "../models/User.js";
 
 // GET user history
 export const getUserHistory = async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id)
-            .populate("history.novel");
+  try {
+    const user = await User.findById(req.user.id).populate("history.novel");
 
-        res.status(200).json(user.history);
-    } catch (error) {
-        res.status(500).json({ message: "Failed to fetch history" });
-    }
+    res.status(200).json(user.history);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch history" });
+  }
 };
 
 // ADD to history
@@ -52,9 +52,9 @@ export const getUserHistory = async (req, res) => {
 //         //     { new: true }
 //         // );
 
-//         res.status(200).json({ 
-//             message: "Archive history synchronized", 
-//             lastRead: chapterNumber 
+//         res.status(200).json({
+//             message: "Archive history synchronized",
+//             lastRead: chapterNumber
 //         });
 //     } catch (error) {
 //         res.status(500).json({ message: "Failed to update archive history" });
@@ -62,34 +62,34 @@ export const getUserHistory = async (req, res) => {
 // };
 // REMOVE single history item
 export const removeFromUserHistory = async (req, res) => {
-    try {
-        const { novelId } = req.params;
+  try {
+    const { novelId } = req.params;
 
-        const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id);
 
-        user.history = user.history.filter(
-            (item) => item.novel.toString() !== novelId
-        );
+    user.history = user.history.filter(
+      (item) => item.novel.toString() !== novelId,
+    );
 
-        await user.save();
+    await user.save();
 
-        res.status(200).json({ message: "Removed from history" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to remove history item" });
-    }
+    res.status(200).json({ message: "Removed from history" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to remove history item" });
+  }
 };
 
 // CLEAR history
 export const clearUserHistory = async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id);
-        user.history = [];
-        await user.save();
+  try {
+    const user = await User.findById(req.user.id);
+    user.history = [];
+    await user.save();
 
-        res.status(200).json({ message: "History cleared" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to clear history" });
-    }
+    res.status(200).json({ message: "History cleared" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to clear history" });
+  }
 };
 
 /* ===========================
@@ -97,71 +97,74 @@ export const clearUserHistory = async (req, res) => {
 =========================== */
 
 export const getUserFavourites = async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id)
-            .populate("favourites.novel");
+  try {
+    const user = await User.findById(req.user.id).populate("favourites.novel");
 
-        res.status(200).json(user.favourites);
-    } catch (error) {
-        res.status(500).json({ message: "Failed to fetch favourites" });
-    }
+    res.status(200).json(user.favourites);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch favourites" });
+  }
 };
 
 export const addToUserFavourites = async (req, res) => {
-    try {
-        const { novelId } = req.params;
-        const userId = req.user.id;
+  try {
+    const { novelId } = req.params;
+    const userId = req.user.id;
 
-        // 1. Remove if exists (to prevent duplicates and move to top)
-        await User.updateOne(
-            { _id: userId },
-            { $pull: { favourites: { novel: novelId } } }
-        );
+    // 1. Remove if exists (to prevent duplicates and move to top)
+    await User.updateOne(
+      { _id: userId },
+      { $pull: { favourites: { novel: novelId } } },
+    );
 
-        // 2. Push to front
-        await User.findByIdAndUpdate(userId, {
-            $push: {
-                favourites: {
-                    $each: [{ novel: novelId, addedAt: new Date() }],
-                    $position: 0
-                }
-            }
-        });
+    // 2. Push to front
+    await User.findByIdAndUpdate(userId, {
+      $push: {
+        favourites: {
+          $each: [{ novel: novelId, addedAt: new Date() }],
+          $position: 0,
+        },
+      },
+    });
 
-        res.status(200).json({ message: "Saved to your library" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to update library" });
-    }
+    await Novel.updateOne({ _id: novelId }, { $pull: { favoritedBy: userId } });
+
+    await Novel.updateOne(
+      { _id: novelId },
+      { $addToSet: { favoritedBy: userId } }, // Adds only if it doesn't already exist
+    );
+
+    res.status(200).json({ message: "Saved to your library" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update library" });
+  }
 };
 
 export const removeFromUserFavourites = async (req, res) => {
-    try {
-        const { novelId } = req.params;
+  try {
+    const { novelId } = req.params;
 
-        const user = await User.findById(req.user.id);
+    await User.updateOne(
+      { _id: req.user.id },
+      { $pull: { favourites: { novel: novelId } } },
+    );
 
-        user.favourites = user.favourites.filter(
-            (item) => item.novel.toString() !== novelId
-        );
-
-        await user.save();
-
-        res.status(200).json({ message: "Removed from bookmarks" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to remove bookmark" });
-    }
+    res.status(200).json({ message: "Removed from bookmarks" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to remove bookmark" });
+  }
 };
 
 export const clearUserFavourites = async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id);
-        user.favourites = [];
-        await user.save();
+  try {
+    const user = await User.findById(req.user.id);
+    user.favourites = [];
+    await user.save();
 
-        res.status(200).json({ message: "Favourites cleared" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to clear favourites" });
-    }
+    res.status(200).json({ message: "Favourites cleared" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to clear favourites" });
+  }
 };
 
 /* ===========================
@@ -169,67 +172,66 @@ export const clearUserFavourites = async (req, res) => {
 =========================== */
 
 export const getUserBookmarks = async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id)
-            .populate("bookmarks.novel");
+  try {
+    const user = await User.findById(req.user.id).populate("bookmarks.novel");
 
-        res.status(200).json(user.bookmarks);
-    } catch (error) {
-        res.status(500).json({ message: "Failed to fetch bookmarks" });
-    }
+    res.status(200).json(user.bookmarks);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch bookmarks" });
+  }
 };
 export const addToUserBookmarks = async (req, res) => {
-    try {
-        const { novelId } = req.params;
-        const userId = req.user.id;
+  try {
+    const { novelId } = req.params;
+    const userId = req.user.id;
 
-        // 1. Remove if exists (to prevent duplicates and move to top)
-        await User.updateOne(
-            { _id: userId },
-            { $pull: { bookmarks: { novel: novelId } } }
-        );
+    // 1. Remove if exists (to prevent duplicates and move to top)
+    await User.updateOne(
+      { _id: userId },
+      { $pull: { bookmarks: { novel: novelId } } },
+    );
 
-        // 2. Push to front
-        await User.findByIdAndUpdate(userId, {
-            $push: {
-                bookmarks: {
-                    $each: [{ novel: novelId, addedAt: new Date() }],
-                    $position: 0
-                }
-            }
-        });
+    // 2. Push to front
+    await User.findByIdAndUpdate(userId, {
+      $push: {
+        bookmarks: {
+          $each: [{ novel: novelId, addedAt: new Date() }],
+          $position: 0,
+        },
+      },
+    });
 
-        res.status(200).json({ message: "Saved to your library" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to update library" });
-    }
+    res.status(200).json({ message: "Saved to your library" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update library" });
+  }
 };
 export const removeFromUserBookmarks = async (req, res) => {
-    try {
-        const { novelId } = req.params;
+  try {
+    const { novelId } = req.params;
 
-        const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id);
 
-        user.bookmarks = user.bookmarks.filter(
-            (item) => item.novel.toString() !== novelId
-        );
+    user.bookmarks = user.bookmarks.filter(
+      (item) => item.novel.toString() !== novelId,
+    );
 
-        await user.save();
+    await user.save();
 
-        res.status(200).json({ message: "Removed from bookmarks" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to remove bookmark" });
-    }
+    res.status(200).json({ message: "Removed from bookmarks" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to remove bookmark" });
+  }
 };
 
 export const clearUserBookmarks = async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id);
-        user.bookmarks = [];
-        await user.save();
+  try {
+    const user = await User.findById(req.user.id);
+    user.bookmarks = [];
+    await user.save();
 
-        res.status(200).json({ message: "Bookmarks cleared" });
-    } catch (error) {
-        res.status(500).json({ message: "Failed to clear bookmarks" });
-    }
+    res.status(200).json({ message: "Bookmarks cleared" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to clear bookmarks" });
+  }
 };

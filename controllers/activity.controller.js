@@ -1,46 +1,5 @@
 import Activity from "../models/Activity.js";
-
-export const createActivity = async (req, res) => {
-  try {
-    const { actionType, targetType, targetId, meta = {} } = req.body;
-
-    if (!actionType || !targetType || !targetId) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
-
-    const userId = req.user._id; // ✅ secure source
-
-    let activity = await Activity.findOne({
-      userId,
-      actionType,
-      targetType,
-      targetId,
-    });
-
-    if (!activity) {
-      activity = await Activity.create({
-        userId,
-        actionType,
-        targetType,
-        targetId,
-        meta,
-      });
-    } else {
-      // 🔥 update timestamp so it appears recent
-      activity.createdAt = new Date();
-      activity.meta = meta || activity.meta;
-      await activity.save();
-    }
-
-    res.status(201).json({
-      success: true,
-      activityId: activity._id,
-    });
-  } catch (err) {
-    console.error("Create activity error:", err);
-    res.status(500).json({ message: "Failed to create activity" });
-  }
-};
+// Get Activities of The Specific user
 export const getUserActivities = async (req, res) => {
   try {
     const activities = await Activity.find({ userId: req.user.id }) // Use consistent ID
@@ -59,9 +18,11 @@ export const getUserActivities = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// Get the Reading Time for the Authenticated user
 export const getReadingTime = async (req, res) => {
   const activities = await Activity.find({ 
-    userId: req.user._id, 
+    userId: req.user.id, 
     actionType: "READ_CHAPTER" 
   }).sort({ createdAt: 1 });
 

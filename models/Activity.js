@@ -25,6 +25,9 @@ const activitySchema = new mongoose.Schema(
         "DELETE_CHAPTER",
         "WRITE_COMMENT",
         "READ_COMMENT",
+        "EDIT_COMMENT",
+        "REPLY_COMMENT",
+        "DELETE_COMMENT",
         "FOLLOW_USER",
       ],
       required: true,
@@ -32,7 +35,7 @@ const activitySchema = new mongoose.Schema(
 
     targetType: {
       type: String,
-      enum: ["NOVEL", "CHAPTER", "USER"],
+      enum: ["NOVEL", "CHAPTER", "USER","COMMENT"],
       required: true,
     },
 
