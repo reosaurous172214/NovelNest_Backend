@@ -85,7 +85,7 @@ export const postReply = async (req, res) => {
       "userId",
       "username profilePicture",
     );
-
+    const parentId = parentComment.userId;
     // 4. Log Activity (Awaited to prevent unhandled promise errors)
 
     await logActivity({
@@ -94,6 +94,13 @@ export const postReply = async (req, res) => {
       targetType: "NOVEL",
       targetId: novelId,
       meta: { commentId: reply._id, parentId: id },
+    });
+    await logNotification({
+      recipient: parentId,
+      sender: req.user.id,
+      type: "REPLY",
+      novelId: novelId,
+      commentId: reply._id,
     });
 
     res.status(201).json(populatedReply);
@@ -106,11 +113,13 @@ export const postReply = async (req, res) => {
 export const updateComment = async (req, res) => {
   try {
     const { id } = req.params;
-    const {  novelId, content } = req.body;
+    const { novelId, content } = req.body;
 
     // 1. Validation check
     if (!content) {
-      return res.status(400).json({ message: "Content is required to Update." });
+      return res
+        .status(400)
+        .json({ message: "Content is required to Update." });
     }
 
     // 2. Find and check ownership before updating
@@ -122,15 +131,17 @@ export const updateComment = async (req, res) => {
 
     // Security check: Only the owner can edit
     if (comment.userId.toString() !== req.user.id.toString()) {
-      return res.status(403).json({ message: "Unauthorized to edit this comment" });
+      return res
+        .status(403)
+        .json({ message: "Unauthorized to edit this comment" });
     }
 
     // 3. Perform Update
     // Use { content } as the second argument, and { new: true } to get the updated doc
     const updatedComment = await Comment.findByIdAndUpdate(
       id,
-      { content }, 
-      { new: true }
+      { content },
+      { new: true },
     ).populate("userId", "username profilePicture");
 
     // 4. Log Activity for Editing (Optional but recommended)
@@ -151,7 +162,6 @@ export const updateComment = async (req, res) => {
 };
 // --- VOTE ON A COMMENT (Like/Dislike) ---
 
-
 export const voteComment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -169,16 +179,20 @@ export const voteComment = async (req, res) => {
     if (voteType === "like") {
       if (hasLiked) {
         // If they already liked it, clicking again should "Unlike" (Optional UX)
-        await Comment.findByIdAndUpdate(id, { 
-          $pull: { likedBy: voterId }, 
-          $inc: { likes: -1 } 
+        await Comment.findByIdAndUpdate(id, {
+          $pull: { likedBy: voterId },
+          $inc: { likes: -1 },
         });
       } else {
         // New Like
-        const updated = await Comment.findByIdAndUpdate(id, { 
-          $push: { likedBy: voterId }, 
-          $inc: { likes: 1 } 
-        }, { new: true }).populate("userId", "username");
+        const updated = await Comment.findByIdAndUpdate(
+          id,
+          {
+            $push: { likedBy: voterId },
+            $inc: { likes: 1 },
+          },
+          { new: true },
+        ).populate("userId", "username");
 
         // 3. TRIGGER NOTIFICATION
         // Only notify if: 1. It's a like, 2. Not the owner liking their own comment
@@ -188,7 +202,7 @@ export const voteComment = async (req, res) => {
             sender: voterId,
             type: "LIKE",
             novelId: updated.novelId,
-            commentId: updated._id
+            commentId: updated._id,
           });
         }
         return res.status(200).json(updated);
@@ -196,15 +210,31 @@ export const voteComment = async (req, res) => {
     }
 
     // Default return for unlike/dislike logic
-    const finalComment = await Comment.findById(id).populate("userId", "username profilePicture");
+    const finalComment = await Comment.findById(id).populate(
+      "userId",
+      "username profilePicture",
+    );
     res.status(200).json(finalComment);
-
   } catch (error) {
     console.error("Vote Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
-
+//Get User comments
+export const getUserComments = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const comments = await Comment.find({ userId })
+      .populate("userId", "username profilePicture")
+      .sort({ updatedAt: -1 });
+    if (!comments) {
+      return res.status(404).json({ message: "Comments not found" });
+    }
+    res.status(200).json(comments);
+  } catch (e) {
+    res.status(500).json({ message: e });
+  }
+};
 // --- GET COMMENTS (With Deep Population) ---
 export const getNovelComments = async (req, res) => {
   try {

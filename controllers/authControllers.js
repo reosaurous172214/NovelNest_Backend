@@ -21,7 +21,9 @@ export const registerUser = async (req, res) => {
       profilePicture: req.file ? `/utilities/${req.file.filename}` : null,
     });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
 
     res.status(201).json({ token });
   } catch (err) {
@@ -32,7 +34,6 @@ export const registerUser = async (req, res) => {
 /* ================= LOGIN ================= */
 export const loginUser = async (req, res) => {
   try {
-
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
@@ -40,17 +41,24 @@ export const loginUser = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
+    if (user.isBanned)
+      return res
+        .status(400)
+        .json({ message: "User is restricted from login!" });
 
     const isMatch = await bcrypt.compare(password, user.password);
     console.log("Password match:", isMatch);
-    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid credentials" });
 
     if (!process.env.JWT_SECRET) {
       console.error("JWT_SECRET not defined!");
       return res.status(500).json({ message: "Server Error" });
     }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
     res.json({ token, user });
   } catch (err) {
     console.error("Login error full:", err);
@@ -58,13 +66,14 @@ export const loginUser = async (req, res) => {
   }
 };
 
-  
 /* ================= GET LOGGED-IN USER ================= */
 export const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
-      .select("-password");
-
+    const user = await User.findById(req.user.id).select("-password");
+    if (user.isBanned)
+      return res
+        .status(400)
+        .json({ message: "User is restricted from login!" });
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch profile" });
@@ -76,7 +85,10 @@ export const updateUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
-
+    if (user.isBanned)
+      return res
+        .status(400)
+        .json({ message: "User is restricted from login!" });
     // BASIC INFO
     user.username = req.body.username ?? user.username;
     user.bio = req.body.bio ?? user.bio;
@@ -94,8 +106,10 @@ export const updateUserProfile = async (req, res) => {
     user.preferences = {
       theme: req.body.theme ?? user.preferences?.theme ?? "light",
       language: req.body.language ?? user.preferences?.language ?? "en",
-      matureContent: req.body.matureContent ?? user.preferences?.matureContent ?? false,
-      notifications: req.body.notifications ?? user.preferences?.notifications ?? true,
+      matureContent:
+        req.body.matureContent ?? user.preferences?.matureContent ?? false,
+      notifications:
+        req.body.notifications ?? user.preferences?.notifications ?? true,
     };
 
     // PROFILE PICTURE
@@ -126,7 +140,6 @@ export const updatePrivacy = async (req, res) => {
     res.status(500).json({ message: "Privacy update failed" });
   }
 };
-
 /* ================= CHANGE PASSWORD ================= */
 export const changePassword = async (req, res) => {
   try {
@@ -136,7 +149,8 @@ export const changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     const match = await bcrypt.compare(currentPassword, user.password);
-    if (!match) return res.status(400).json({ message: "Current password incorrect" });
+    if (!match)
+      return res.status(400).json({ message: "Current password incorrect" });
 
     const hashed = await bcrypt.hash(newPassword, 10);
     user.password = hashed;

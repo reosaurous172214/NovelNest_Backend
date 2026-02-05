@@ -144,6 +144,7 @@ export const getChapterByNovel = async (req, res) => {
 };
 
 /* ---------------- GET SINGLE CHAPTER ---------------- */
+
 export const getSingleChapter = async (req, res) => {
   try {
     const { novelId, chapterNumber } = req.params;
@@ -164,7 +165,7 @@ export const getSingleChapter = async (req, res) => {
 
     // ✅ FIXED: Services used consistently
     if (req.user) {
-      const userId = req.user.id || req.user._id;
+      const userId = req.user.id ;
       const novel = await Novel.findById(novelId);
 
       await logActivity({

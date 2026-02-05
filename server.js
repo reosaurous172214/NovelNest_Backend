@@ -13,6 +13,8 @@ import Novel from "./models/Novel.js";
 import searchRoutes from "./routes/search.routes.js";
 import commentRoutes from "./routes/comment.router.js";
 import notificationRoutes from "./routes/notification.router.js";
+import adminRoutes from "./routes/admin.routes.js";
+import analyticsRoutes from "./routes/analytics.routes.js"
 dotenv.config();
 const app = express();
 
@@ -29,6 +31,8 @@ app.use("/api/lib", libRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/comments",commentRoutes);
 app.use("/api/notifications",notificationRoutes);
+app.use('/api/admin',adminRoutes);
+app.use('/api/analytics',analyticsRoutes);
 app.get("/", (req, res) => {
   res.send("Novel API is running");
 });

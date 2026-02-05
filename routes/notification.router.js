@@ -8,9 +8,7 @@ import {
 import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
-
 // All notification routes require being logged in
-
 router.get("/",protect, getMyNotifications);
 router.patch("/read/:id",protect, markAsRead); // ID is optional for "Mark All"
 router.delete("/clear-all",protect, clearAllNotifications);//clear all

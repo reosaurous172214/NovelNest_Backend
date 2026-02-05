@@ -10,7 +10,7 @@ import {
 } from "../controllers/authControllers.js";
 
 import { upload } from "../middleware/upload.js";
-import authmiddleware from "../middleware/authMiddleware.js";
+import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -19,10 +19,10 @@ router.post("/register", upload.single("profilePicture"), registerUser);
 router.post("/login", loginUser);
 
 // PROFILE
-router.get("/me", authmiddleware, getMe);
-router.put("/updateProfile", authmiddleware, upload.single("profilePicture"), updateUserProfile);
-router.put("/privacy", authmiddleware, updatePrivacy);
-router.put("/changePassword", authmiddleware, changePassword);
-router.get("/stats", authmiddleware, getReadingStats);
+router.get("/me", protect, getMe);
+router.put("/updateProfile", protect, upload.single("profilePicture"), updateUserProfile);
+router.put("/privacy", protect, updatePrivacy);
+router.put("/changePassword", protect, changePassword);
+router.get("/stats", protect, getReadingStats);
 
 export default router;

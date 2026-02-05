@@ -2,6 +2,7 @@ import express from "express";
 import {
   postComment,
   getNovelComments,
+  getUserComments,
   deleteComment,
   voteComment,
   postReply,
@@ -10,10 +11,13 @@ import {
 import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
+router.post("/", protect, postComment);
+
+// router.get("/:userId", getUserComments);
 
 router.get("/:novelId", getNovelComments);
 
-router.post("/", protect, postComment);
+
 
 router.post("/:id/replies", protect, postReply);
 

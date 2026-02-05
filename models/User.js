@@ -117,7 +117,10 @@ const userSchema = new mongoose.Schema(
       enum: ["reader", "author", "admin"],
       default: "reader",
     },
-
+    isBanned : {
+      type: Boolean,
+      default: false,
+    },
     /* -------- READING HISTORY -------- */
     history: {
       type: [readingHistorySchema],
