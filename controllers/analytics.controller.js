@@ -8,6 +8,7 @@ import mongoose from "mongoose";
  * Call this every 60 seconds from the frontend reader.
  * Increments daily minutes and novel-specific minutes.
  */
+
 export const syncHeartbeat = async (req, res) => {
     const { novelId, wordsWritten = 0, chapterFinished = false } = req.body;
     const userId = req.user.id;
@@ -65,10 +66,12 @@ export const syncHeartbeat = async (req, res) => {
 /**
  * Fetches data for the Analytics Tab charts (last 7 days).
  */
+/* ---------------- GET ANALYTICS SUMMARY ---------------- */
 export const getAnalyticsSummary = async (req, res) => {
     try {
-        const userId = new mongoose.Types.ObjectId(req.user.id);
-        
+        // 🔥 FIX 1: Define userId from req.user
+        const userId = req.user.id; 
+
         // 1. Fetch last 7 days of heartbeat data
         const history = await Analytics.find({ user: userId })
             .sort({ date: -1 })
@@ -77,15 +80,16 @@ export const getAnalyticsSummary = async (req, res) => {
             .lean();
 
         // 2. Aggregate Lifetime Stats
+        // 🔥 FIX 2: Use mongoose.Types.ObjectId for aggregation matching
         const lifetime = await Analytics.aggregate([
-            { $match: { user: userId } },
+            { $match: { user: new mongoose.Types.ObjectId(userId) } },
             {
                 $group: {
                     _id: null,
                     totalMinutes: { $sum: "$readingMinutes" },
                     totalWords: { $sum: "$wordsWritten" },
                     totalChapters: { $sum: { $sum: "$novelsRead.chaptersFinished" } },
-                    daysActive: { $count: {} }
+                    daysActive: { $sum: 1 } // Correct way to count documents in a group
                 }
             }
         ]);
@@ -100,11 +104,12 @@ export const getAnalyticsSummary = async (req, res) => {
         const stats = lifetime[0] || { totalMinutes: 0, totalWords: 0, totalChapters: 0, daysActive: 0 };
 
         res.status(200).json({
-            history: history.reverse(), // For chronological chart rendering
+            history: history.reverse(), 
             metrics: {
                 booksRead: readCount.length,
                 published,
                 favorites,
+                totalMinutes: stats.totalMinutes, // For your "show in minutes" requirement
                 totalHours: (stats.totalMinutes / 60).toFixed(1),
                 totalWords: stats.totalWords,
                 totalChapters: stats.totalChapters,
@@ -112,6 +117,8 @@ export const getAnalyticsSummary = async (req, res) => {
             }
         });
     } catch (error) {
+        // This will now log to your server console so you can see if anything else breaks
+        console.error("Analytics Summary Error:", error);
         res.status(500).json({ error: error.message });
     }
 };

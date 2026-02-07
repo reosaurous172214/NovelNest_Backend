@@ -8,6 +8,7 @@ import {
   deleteNovel,
   togglePublish,
   getRecommendedNovels,
+  rateNovel
 } from "../controllers/novelControllers.js";
 
 import protect from "../middleware/authMiddleware.js";
@@ -24,5 +25,6 @@ router.post("/", protect, isAuthor, upload.single("coverImage"), createNovel);
 router.put("/:id", protect, isAuthor, upload.single("coverImage"), updateNovel);
 router.delete("/:id", protect, isAuthor, deleteNovel);
 router.patch("/:id/publish", protect, togglePublish);
+router.post('/:id/rate', protect, rateNovel);
 
 export default router;

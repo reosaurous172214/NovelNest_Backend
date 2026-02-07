@@ -1,5 +1,5 @@
 export const isAuthor = (req, res, next) => {
-    if (req.user && req.user.role === 'author') {
+    if (req.user && (req.user.role === 'author' || req.user.role === 'admin')) {
         next(); // User is author, proceed to the controller
     } else {
         res.status(403).json({ 

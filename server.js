@@ -15,6 +15,7 @@ import commentRoutes from "./routes/comment.router.js";
 import notificationRoutes from "./routes/notification.router.js";
 import adminRoutes from "./routes/admin.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js"
+import { startBlockchainListener } from "./blockchain/listener.js";
 dotenv.config();
 const app = express();
 
@@ -49,7 +50,7 @@ const getTitle = async () => {
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB connected");
-    // 🔥 CALL IT HERE: Only after connection is successful
+    startBlockchainListener();
     getTitle(); 
   })
   .catch(err => console.error("Mongo error:", err.message));

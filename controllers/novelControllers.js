@@ -1,8 +1,9 @@
+import mongoose from "mongoose";
 import Novel from "../models/Novel.js";
 import { logActivity } from "../services/activity.service.js";
 import { novelSearchTrie } from "../services/search.service.js";
 
-
+import Review from "../models/Review.js";
 /* ---------------- HELPER ---------------- */
 const normalizeArray = (value) => {
   if (!value) return [];
@@ -158,7 +159,7 @@ export const getNovelById = async (req, res) => {
           ? novel.coverImage
           : `http://localhost:5000${novel.coverImage}`
         : null,
-      author: novel.author?.username || "Unknown Author",
+      author: novel.author?.username || "Anonymous",
       authorImage: novel.author?.profilePicture
         ? `http://localhost:5000${novel.author.profilePicture}`
         : null,
@@ -286,6 +287,64 @@ export const togglePublish = async (req, res) => {
     res.status(200).json({
       isPublished: novel.isPublished,
       message: novel.isPublished ? "Published" : "Unpublished",
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Rate a novel
+// @route   POST /api/novels/:id/rate
+// @access  Privateexport const rateNovel = async (req, res) => {
+export const rateNovel = async (req, res) => {
+  const { id } = req.params; // Novel ID
+  const { rating } = req.body;
+  const userId = req.user.id;
+
+  if (!rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ message: "Please provide a rating between 1 and 5" });
+  }
+
+  try {
+    // 1. Update or Create the review in the Review collection
+    await Review.findOneAndUpdate(
+      { novelId: id, userId: userId },
+      { rating: rating },
+      { upsert: true, new: true }
+    );
+
+    // 2. Calculate the new average using Aggregation
+    const stats = await Review.aggregate([
+      { $match: { novelId: new mongoose.Types.ObjectId(id) } },
+      {
+        $group: {
+          _id: "$novelId",
+          averageRating: { $avg: "$rating" },
+          totalReviews: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const averageRating = stats.length > 0 ? stats[0].averageRating.toFixed(1) : 0;
+    const reviewCount = stats.length > 0 ? stats[0].totalReviews : 0;
+
+    // 3. Update the Novel document with the new stats
+    const updatedNovel = await Novel.findByIdAndUpdate(
+      id,
+      { 
+        rating: averageRating,
+      },
+      { new: true }
+    );
+
+    if (!updatedNovel) {
+      return res.status(404).json({ message: "Novel not found" });
+    }
+
+    res.status(200).json({ 
+      message: "Rating synchronized", 
+      averageRating: updatedNovel.rating,
+      reviewCount: updatedNovel.reviewCount
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

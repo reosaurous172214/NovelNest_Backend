@@ -20,6 +20,19 @@ const novelSchema = new mongoose.Schema(
 
     totalChapters: { type: Number, default: 0 },
     rating: { type: Number, default: 0 },
+    ratings: [
+    {
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      rating: {
+        type: Number,
+        required: true
+      }
+    }
+    ],
     views: { type: Number, default: 0 },
 
     recommendations: [{ type: mongoose.Schema.Types.ObjectId, ref: "Novel" }],

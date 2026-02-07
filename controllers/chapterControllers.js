@@ -20,7 +20,9 @@ export const createChapter = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    const lastChapter = await Chapter.findOne({ novelId }).sort({ chapterNumber: -1 });
+    const lastChapter = await Chapter.findOne({ novelId }).sort({
+      chapterNumber: -1,
+    });
     const nextNumber = lastChapter ? lastChapter.chapterNumber + 1 : 1;
 
     const newChapter = new Chapter({
@@ -54,21 +56,25 @@ export const createChapter = async (req, res) => {
     // Notifications
     const favoritedUsers = novel.favoritedBy || [];
     if (favoritedUsers.length > 0) {
-      Promise.all(favoritedUsers.map(async (uId) => {
-        try {
-          await logNotification({
-            recipient: uId,
-            type: "NEW_CHAPTER",
-            novelId: novel._id,
-            chapterId: newChapter._id,
-          });
-        } catch (err) {
-          console.error("Notification failed for user:", uId);
-        }
-      }));
+      Promise.all(
+        favoritedUsers.map(async (uId) => {
+          try {
+            await logNotification({
+              recipient: uId,
+              type: "NEW_CHAPTER",
+              novelId: novel._id,
+              chapterId: newChapter._id,
+            });
+          } catch (err) {
+            console.error("Notification failed for user:", uId);
+          }
+        }),
+      );
     }
 
-    res.status(201).json({ message: "Chapter published!", chapter: newChapter });
+    res
+      .status(201)
+      .json({ message: "Chapter published!", chapter: newChapter });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -144,6 +150,8 @@ export const getChapterByNovel = async (req, res) => {
 };
 
 /* ---------------- GET SINGLE CHAPTER ---------------- */
+// Variable to store temporary view locks (In-memory cache)
+const viewCache = new Map();
 
 export const getSingleChapter = async (req, res) => {
   try {
@@ -153,7 +161,7 @@ export const getSingleChapter = async (req, res) => {
     const chapter = await Chapter.findOne({ novelId, chapterNumber: chapterNo });
     if (!chapter) return res.status(404).json({ message: "Chapter not found" });
 
-    // Access Logic
+    // 1. Access Logic
     let limit = CHAPTER_LIMITS.GUEST;
     if (req.user) {
       limit = req.user.role === "PREMIUM" ? CHAPTER_LIMITS.PREMIUM : CHAPTER_LIMITS.FREE;
@@ -163,37 +171,61 @@ export const getSingleChapter = async (req, res) => {
       return res.status(403).json({ code: "CHAPTER_LIMIT_REACHED", allowedChapters: limit });
     }
 
-    // ✅ FIXED: Services used consistently
-    if (req.user) {
-      const userId = req.user.id ;
-      const novel = await Novel.findById(novelId);
+    // 2. SMART VIEW INCREMENT (The +2 Fix)
+    // Create a unique key for this user + this novel
+    const userId = req.user?.id || req.ip; 
+    const lockKey = `${userId}-${novelId}`;
+    const now = Date.now();
+    const lastView = viewCache.get(lockKey);
 
-      await logActivity({
-        userId: userId,
-        actionType: "READ_CHAPTER",
-        targetType: "CHAPTER",
-        targetId: chapter._id,
-        meta: {
-          novelTitle: novel?.title,
-          chapterTitle: chapter.title,
-          chapterNumber: chapterNo,
-        },
-      });
+    // Only increment if they haven't viewed this specific novel in the last 10 seconds
+    if (!lastView || (now - lastView > 10000)) {
+        await Novel.findByIdAndUpdate(novelId, { $inc: { views: 1 } });
+        viewCache.set(lockKey, now);
 
-      await logHistory({
-        userId: userId,
-        novelId: novelId,
-        chapterNumber: chapterNo,
-      });
+        // Cleanup: Remove the key after 11 seconds to keep memory clean
+        setTimeout(() => viewCache.delete(lockKey), 11000);
     }
 
+    // 3. Activity Logging (Background)
+    if (req.user) {
+      const novel = await Novel.findById(novelId);
+      
+      Promise.all([
+        logActivity({
+          userId: req.user.id,
+          actionType: "READ_CHAPTER",
+          targetType: "CHAPTER",
+          targetId: chapter._id,
+          meta: {
+            novelTitle: novel?.title,
+            chapterTitle: chapter.title,
+            chapterNumber: chapterNo,
+          },
+        }),
+        logHistory({
+          userId: req.user.id,
+          novelId: novelId,
+          chapterNumber: chapterNo,
+        })
+      ]).catch(err => console.error("Background logging error:", err.message));
+    }
+
+    // 4. Fetch Next Chapter info
     const nextChapter = await Chapter.findOne({
       novelId,
-      chapterNumber: chapterNo + 1,
-    }).select("_id chapterNumber title");
+      chapterNumber: { $gt: chapterNo },
+    })
+    .sort({ chapterNumber: 1 })
+    .select("_id chapterNumber title");
 
-    res.status(200).json({ chapter, hasNext: !!nextChapter });
+    res.status(200).json({ 
+      chapter, 
+      hasNext: !!nextChapter,
+      nextChapterId: nextChapter?._id || null 
+    });
   } catch (err) {
+    console.error("Reader Error:", err.message);
     res.status(500).json({ message: err.message });
   }
 };

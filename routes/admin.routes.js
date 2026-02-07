@@ -2,24 +2,39 @@ import express from "express";
 import {
     getSingleNovel,
     adminGetAllNovels,
+    adminGetAllUsers,
     banUserByAdmin,
+    unBanUserByAdmin,
     deleteNovelByAdmin,
-    getModerationLogs
+    getModerationLogs,
+    getDashboardStats
 } from "../controllers/admin/admin.controller.js";
-import {isAdmin} from "../middleware/isAdminMiddleware.js";
+import { isAdmin } from "../middleware/isAdminMiddleware.js";
 import protect from "../middleware/authMiddleware.js";
+
 const router = express.Router();
-router.use(protect)
-// @route get all novels
 
+// Apply global protection: User must be logged in for any route here
+router.use(protect);
+
+// @route   GET /api/admin/users
+// Fetches all users for the management dashboard
+router.get("/users", isAdmin, adminGetAllUsers);
+router.get("/stats",  isAdmin, getDashboardStats);
+// @route   GET /api/admin/novels
 router.get("/novels", isAdmin, adminGetAllNovels);
-router.get("/novels/:novelId",isAdmin,getSingleNovel);
+router.get("/novels/:novelId", isAdmin, getSingleNovel);
 
-// @route ban the user
-router.put("/ban/:userId", isAdmin, banUserByAdmin);
-// @route delete the novel
-router.delete("/delete/:novelId",isAdmin, deleteNovelByAdmin);
+// @route   PATCH /api/admin/ban/:userId
+// Partial update to toggle isBanned status and log reason
+router.patch("/ban/:userId", isAdmin, banUserByAdmin);
+router.patch("/unban/:userId",isAdmin, unBanUserByAdmin);
+
+// @route   DELETE /api/admin/delete/:novelId
+router.delete("/delete/:novelId", isAdmin, deleteNovelByAdmin);
+
 // @route   GET /api/admin/logs
-router.get("/logs", getModerationLogs);
+// Optimization: Added isAdmin protection for sensitive audit logs
+router.get("/logs", isAdmin, getModerationLogs);
 
 export default router;

@@ -173,3 +173,19 @@ export const getReadingStats = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch reading stats" });
   }
 };
+export const walletConnect = async (req, res) => {
+  try {
+    const { walletAddress } = req.body;
+    
+    // Update the user who is currently logged in
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { walletAddress: walletAddress.toLowerCase() },
+      { new: true }
+    );
+
+    res.status(200).json({ success: true, walletAddress: user.walletAddress });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update wallet", error: error.message });
+  }
+};

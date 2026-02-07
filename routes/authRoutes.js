@@ -6,7 +6,8 @@ import {
   updateUserProfile,
   updatePrivacy,
   changePassword,
-  getReadingStats
+  getReadingStats,
+  walletConnect
 } from "../controllers/authControllers.js";
 
 import { upload } from "../middleware/upload.js";
@@ -24,5 +25,6 @@ router.put("/updateProfile", protect, upload.single("profilePicture"), updateUse
 router.put("/privacy", protect, updatePrivacy);
 router.put("/changePassword", protect, changePassword);
 router.get("/stats", protect, getReadingStats);
-
+// backend/routes/userRoutes.js
+router.put("/update-wallet", protect, walletConnect);
 export default router;

@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 
 /* ================= READING HISTORY ================= */
-
 const readingHistorySchema = new mongoose.Schema(
   {
     novel: {
@@ -26,7 +25,6 @@ const readingHistorySchema = new mongoose.Schema(
 );
 
 /* ================= USER SCHEMA ================= */
-
 const userSchema = new mongoose.Schema(
   {
     /* -------- BASIC PROFILE -------- */
@@ -34,14 +32,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "utilities/dummy.png",
     },
-
     username: {
       type: String,
       required: true,
       unique: true,
       trim: true,
     },
-
     email: {
       type: String,
       required: true,
@@ -49,18 +45,15 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
-
     mobile: {
       type: String,
       trim: true,
     },
-
     bio: {
       type: String,
       default: "",
       maxlength: 300,
     },
-
     password: {
       type: String,
       required: true,
@@ -117,10 +110,35 @@ const userSchema = new mongoose.Schema(
       enum: ["reader", "author", "admin"],
       default: "reader",
     },
-    isBanned : {
+    isBanned: {
       type: Boolean,
       default: false,
     },
+
+   wallet: {
+      balance: {
+        type: Number,
+        default: 0, 
+        min: 0,
+      },
+      totalSpent: {
+        type: Number,
+        default: 0, // Cumulative coins spent on chapters
+      },
+      totalEarned: {
+        type: Number,
+        default: 0, // Total NestCoins earned (for Authors)
+      },
+    },
+
+    /* -------- OWNED CONTENT -------- */
+    unlockedChapters: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Chapter",
+      },
+    ],
+
     /* -------- READING HISTORY -------- */
     history: {
       type: [readingHistorySchema],
@@ -140,7 +158,6 @@ const userSchema = new mongoose.Schema(
         addedAt: { type: Date, default: Date.now },
       },
     ],
-
     favoriteGenres: [String],
 
     /* -------- READING STATS -------- */
