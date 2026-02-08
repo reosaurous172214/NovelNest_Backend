@@ -7,7 +7,9 @@ import {
   updatePrivacy,
   changePassword,
   getReadingStats,
-  walletConnect
+  walletConnect,
+  sendOTP,
+  resetPassword
 } from "../controllers/authControllers.js";
 
 import { upload } from "../middleware/upload.js";
@@ -18,7 +20,9 @@ const router = express.Router();
 // AUTH
 router.post("/register", upload.single("profilePicture"), registerUser);
 router.post("/login", loginUser);
-
+// send otp route
+router.post('/send-otp', sendOTP);
+router.post('/reset-pass', resetPassword);
 // PROFILE
 router.get("/me", protect, getMe);
 router.put("/updateProfile", protect, upload.single("profilePicture"), updateUserProfile);

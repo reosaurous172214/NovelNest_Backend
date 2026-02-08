@@ -45,6 +45,10 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    otp: {
+    code: { type: String },
+    expiresAt: { type: Date }
+  },
     mobile: {
       type: String,
       trim: true,
