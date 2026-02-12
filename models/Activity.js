@@ -29,13 +29,14 @@ const activitySchema = new mongoose.Schema(
         "REPLY_COMMENT",
         "DELETE_COMMENT",
         "FOLLOW_USER",
+        "BOUGHT_CHAPTER"
       ],
       required: true,
     },
 
     targetType: {
       type: String,
-      enum: ["NOVEL", "CHAPTER", "USER","COMMENT"],
+      enum: ["NOVEL", "CHAPTER", "USER","COMMENT","PURCHASE"],
       required: true,
     },
 

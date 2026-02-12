@@ -1,9 +1,13 @@
 import { CHAPTER_LIMITS } from "../config/chapterLimit.js";
 import Chapter from "../models/Chapter.js";
+import Transaction from "../models/Transaction.js";
 import Novel from "../models/Novel.js";
+import Notification from "../models/Notification.js";
+import User from "../models/User.js";
 import { logActivity } from "../services/activity.service.js";
 import { logHistory } from "../services/user.service.js";
 import { logNotification } from "../services/notification.service.js";
+import { logPayAuthor } from "../services/author.wallet.js";
 
 /* ---------------- CREATE CHAPTER ---------------- */
 export const createChapter = async (req, res) => {
@@ -152,23 +156,35 @@ export const getChapterByNovel = async (req, res) => {
 /* ---------------- GET SINGLE CHAPTER ---------------- */
 // Variable to store temporary view locks (In-memory cache)
 const viewCache = new Map();
-
+// getting single chapter
 export const getSingleChapter = async (req, res) => {
   try {
     const { novelId, chapterNumber } = req.params;
     const chapterNo = Number(chapterNumber);
-
     const chapter = await Chapter.findOne({ novelId, chapterNumber: chapterNo });
     if (!chapter) return res.status(404).json({ message: "Chapter not found" });
 
     // 1. Access Logic
     let limit = CHAPTER_LIMITS.GUEST;
+    let isUnlocked = false;
+
     if (req.user) {
-      limit = req.user.role === "PREMIUM" ? CHAPTER_LIMITS.PREMIUM : CHAPTER_LIMITS.FREE;
+      const user = await User.findById(req.user.id);
+      limit = user.role === "PREMIUM" ? CHAPTER_LIMITS.PREMIUM : CHAPTER_LIMITS.FREE;
+      
+      // Fix: Check the chapterId property inside the unlockedChapters array
+      isUnlocked = user.unlockedChapters.some(
+        (id) => id.toString() === chapter._id.toString()
+      );
     }
 
-    if (chapterNo > limit) {
-      return res.status(403).json({ code: "CHAPTER_LIMIT_REACHED", allowedChapters: limit });
+    if (chapterNo > limit && !isUnlocked) {
+      return res.status(403).json({ 
+      code: "CHAPTER_LIMIT_REACHED,BUY IT",
+      message: "Please purchase this chapter to continue reading.",
+      chapterId:chapter._id,
+      allowedChapters: limit 
+      });
     }
 
     // 2. SMART VIEW INCREMENT (The +2 Fix)
@@ -227,5 +243,97 @@ export const getSingleChapter = async (req, res) => {
   } catch (err) {
     console.error("Reader Error:", err.message);
     res.status(500).json({ message: err.message });
+  }
+};
+export const unlockSingleChapter = async (req, res) => {
+  try {
+    const { chapterId } = req.params;
+    const chapterCost = 50; 
+
+    // 1. Fetch Data
+    const chapter = await Chapter.findById(chapterId).populate("novelId");
+    if (!chapter) return res.status(404).json({ message: "Chapter not found." });
+
+    const userId = req.user._id || req.user.id;
+    const user = await User.findById(userId).populate('wallet');
+    
+    if (!user || !user.wallet) {
+      return res.status(404).json({ message: "User or Wallet not found." });
+    }
+
+    // 2. Access Check
+    const alreadyUnlocked = user.unlockedChapters.some(
+      (id) => id.toString() === chapterId.toString()
+    );
+    if (alreadyUnlocked) {
+      console.log("chapter already unlocked");
+      return res.status(400).json({ message: "Chapter already in your library." });
+    }
+
+    if (user.wallet.balance < chapterCost) {
+      return res.status(403).json({ message: "Insufficient NestCoins." });
+    }
+
+    // --- 3. THE TRANSACTION LOGIC ---
+    user.wallet.balance -= chapterCost;
+    user.wallet.totalSpent += chapterCost;
+    user.unlockedChapters.push(chapterId);
+
+    // Create Transaction record consistent with your Stripe deposit format
+    await Transaction.create({
+      wallet: user.wallet._id,
+      user: userId,
+      amount: -chapterCost, // Negative value for withdrawal
+      type: 'withdrawal', 
+      status: 'completed',
+      balanceAfter: user.wallet.balance,
+      description: `Unlocked Chapter: ${chapter.title}`
+    });
+
+    // 4. Persistence
+    await Promise.all([
+      user.wallet.save(),
+      user.save()
+    ]);
+
+    // 5. Background Tasks
+    await logActivity({
+      userId: userId,
+      actionType: "BOUGHT_CHAPTER",
+      targetType: "PURCHASE",
+      targetId: chapterId,
+      meta: { chapterTitle: chapter.title, chapterNumber: chapter.chapterNumber },
+    });
+
+    const paymentSuccess = await logPayAuthor({ chapter, Price: chapterCost });
+
+    if (paymentSuccess) {
+      const authorId = chapter.novelId.author;
+      await Promise.all([
+        Notification.create({
+          recipient: authorId,
+          sender: user._id,
+          type: "EARNING",
+          message: `You earned coins from a new reader on ${chapter.novelId.title}`,
+          data: { chapterId }
+        }),
+        logNotification({
+          recipient: authorId,
+          sender: user._id,
+          type: "EARNING",
+          novelId: chapter.novelId._id,
+          chapterId: chapter._id,
+        })
+      ]);
+    }
+
+    res.status(200).json({ 
+      message: "Chapter Unlocked Successfully.",
+      remainingBalance: user.wallet.balance 
+    });
+
+  } catch (e) {
+    console.error("Unlock Error:", e.message);
+    res.status(500).json({ message: "Error during unlock process." });
   }
 };

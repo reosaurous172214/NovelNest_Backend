@@ -202,44 +202,50 @@ export const getRecommendedNovels = async (req, res) => {
 /* ---------------- UPDATE NOVEL ---------------- */
 export const updateNovel = async (req, res) => {
   try {
-    const novel = await Novel.findById(req.params.id);
-    if (!novel) return res.status(404).json({ message: "Novel not found" });
+    const { id } = req.params;
+    const novel = await Novel.findById(id);
 
-    // Authorization check using req.user.id
-    if (novel.author.toString() !== req.user.id.toString())
-      return res.status(403).json({ message: "Unauthorized" });
-
-    const oldTitle = novel.title;
-    const { title, description, incrementBy } = req.body;
-    const genres = normalizeArray(req.body.genres);
-    const tags = normalizeArray(req.body.tags);
-
-    if (title) novel.title = title;
-    if (description) novel.description = description;
-    if (genres.length) novel.genres = genres;
-    if (tags.length) novel.tags = tags;
-    if (req.file) novel.coverImage = `/utilities/${req.file.filename}`;
-    if (incrementBy !== undefined) novel.totalChapters += Number(incrementBy);
-
-    await novel.save();
-
-    // Re-index Trie if title was updated
-    if (title && title !== oldTitle) {
-      novelSearchTrie.insert(novel.title, {
-        id: novel._id,
-        title: novel.title,
-        cover: novel.coverImage,
-      });
+    if (!novel) {
+      return res.status(404).json({ message: "Novel not found" });
     }
 
-    await logActivity({
-      userId: req.user.id,
-      actionType: "UPDATE_NOVEL",
-      targetType: "NOVEL",
-      targetId: novel._id,
-      meta: { novelTitle: novel.title },
-    });
-    res.status(200).json({ novel });
+    // Check if the user is the owner
+    if (novel.author.toString() !== req.user.id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: "Not authorized to edit this novel" });
+    }
+
+    // Prepare update object
+    const updateData = {
+      title: req.body.title || novel.title,
+      description: req.body.description || novel.description,
+    };
+
+    // Handle Genres (Parse if it comes as a string from FormData)
+    if (req.body.genres) {
+      updateData.genres = typeof req.body.genres === 'string' 
+        ? JSON.parse(req.body.genres) 
+        : req.body.genres;
+    }
+
+    // Handle Chapters (If you sent the updated chapter list)
+    if (req.body.chapters) {
+      updateData.chapters = typeof req.body.chapters === 'string' 
+        ? JSON.parse(req.body.chapters) 
+        : req.body.chapters;
+    }
+
+    // Handle Image Upload
+    if (req.file) {
+      updateData.coverImage = req.file.path; // Or req.file.filename depending on storage
+    }
+
+    const updatedNovel = await Novel.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json(updatedNovel);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

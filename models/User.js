@@ -32,6 +32,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "utilities/dummy.png",
     },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true, // Only indexed if the field exists
+    },
     username: {
       type: String,
       required: true,
@@ -60,7 +65,7 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      // required: true,
     },
 
     /* -------- LOCATION -------- */
@@ -120,19 +125,10 @@ const userSchema = new mongoose.Schema(
     },
 
    wallet: {
-      balance: {
-        type: Number,
-        default: 0, 
-        min: 0,
-      },
-      totalSpent: {
-        type: Number,
-        default: 0, // Cumulative coins spent on chapters
-      },
-      totalEarned: {
-        type: Number,
-        default: 0, // Total NestCoins earned (for Authors)
-      },
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Wallet",
+      index: true,
+      unique: true
     },
 
     /* -------- OWNED CONTENT -------- */

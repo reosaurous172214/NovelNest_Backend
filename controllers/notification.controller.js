@@ -25,20 +25,31 @@ export const getMyNotifications = async (req, res) => {
 // PATCH: Mark single or all notifications as read
 export const markAsRead = async (req, res) => {
   try {
+    // 1. Safety check for the 'protect' middleware
+    if (!req.user) {
+      return res.status(401).json({ message: "Auth failed: No user found" });
+    }
+
     const { id } = req.params; 
-    
-    // If id exists, query by id. If not (null/undefined), query all for the user.
+    const userId = req.user._id || req.user.id;
+
+    // 2. Build the query based on whether an ID was passed in the URL
     const query = id 
-      ? { _id: id, recipient: req.user.id } 
-      : { recipient: req.user.id, isRead: false };
+      ? { _id: id, recipient: userId } 
+      : { recipient: userId, isRead: false };
     
-    await Notification.updateMany(query, { $set: { isRead: true } });
-    res.status(200).json({ message: "Success" });
+    // 3. Update the database
+    const result = await Notification.updateMany(query, { $set: { isRead: true } });
+
+    res.status(200).json({ 
+      message: "Success", 
+      count: result.modifiedCount 
+    });
   } catch (error) {
+    console.error("Notification Controller Error:", error.message);
     res.status(500).json({ message: error.message });
   }
 };
-
 // DELETE: Remove a specific notification
 export const deleteNotification = async (req, res) => {
   try {

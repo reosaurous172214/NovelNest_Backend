@@ -1,7 +1,9 @@
 import Novel from "../../models/Novel.js";
 import User from "../../models/User.js";
 import ModerationLog from "../../models/ModerationLog.js"; // Import the log model
-
+import Request from "../../models/Request.js";
+import mongoose from "mongoose";
+import { logNotification } from "../../services/notification.service.js";
 // Novel Admin Controller
 // adminController.js
 export const getDashboardStats = async (req, res) => {
@@ -22,7 +24,7 @@ export const getDashboardStats = async (req, res) => {
     // 4. Total Revenue (Summing all completed wallet transactions)
     // Adjust "amount" and "status" based on your Wallet/Transaction schema
     const revenueData = await User.aggregate([
-      { $group: { _id: null, total: { $sum: "$wallet.balance" } } } 
+      { $group: { _id: null, total: { $sum: "$wallet.balance" } } },
     ]);
     // Note: This sums current balances. For real revenue, aggregate your Transactions collection.
     const totalRevenue = revenueData[0]?.total || 0;
@@ -34,7 +36,12 @@ export const getDashboardStats = async (req, res) => {
       totalRevenue,
     });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching dashboard telemetry", error: error.message });
+    res
+      .status(500)
+      .json({
+        message: "Error fetching dashboard telemetry",
+        error: error.message,
+      });
   }
 };
 //get a single novel for view
@@ -100,7 +107,10 @@ export const deleteNovelByAdmin = async (req, res) => {
 export const adminGetAllUsers = async (req, res) => {
   try {
     // We populate author to show "Author Name" in the admin table
-    const users = await User.find().sort({ createdAt: -1 }).limit(50);
+    const users = await User.find()
+      .populate("wallet", "balance")
+      .sort({ createdAt: -1 })
+      .limit(50);
 
     res.status(200).json(users);
   } catch (error) {
@@ -115,21 +125,21 @@ export const banUserByAdmin = async (req, res) => {
 
     // 1. Security: Prevent self-ban
     if (req.user.id === userId) {
-      return res.status(400).json({ 
-        message: "You cannot ban your own account." 
+      return res.status(400).json({
+        message: "You cannot ban your own account.",
       });
     }
 
     const userToBan = await User.findById(userId);
-    
+
     if (!userToBan) {
-      return res.status(404).json({ 
-        message: "User Not Found!!" 
+      return res.status(404).json({
+        message: "User Not Found!!",
       });
     }
     if (userToBan.isBanned) {
-      return res.status(403).json({ 
-        message: "User is already restricted." 
+      return res.status(403).json({
+        message: "User is already restricted.",
       });
     }
 
@@ -142,13 +152,12 @@ export const banUserByAdmin = async (req, res) => {
       reason: reason || "Terms of Service Violation",
     });
 
-    res.status(200).json({ 
-      message: `User ${userToBan.username} restricted successfully.` 
+    res.status(200).json({
+      message: `User ${userToBan.username} restricted successfully.`,
     });
-    
   } catch (e) {
-    res.status(500).json({ 
-      message: e.message 
+    res.status(500).json({
+      message: e.message,
     });
   }
 };
@@ -156,18 +165,16 @@ export const unBanUserByAdmin = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    
-
     const userToUnBan = await User.findById(userId);
-    
+
     if (!userToUnBan) {
-      return res.status(404).json({ 
-        message: "User Not Found!!" 
+      return res.status(404).json({
+        message: "User Not Found!!",
       });
     }
     if (!userToUnBan.isBanned) {
-      return res.status(403).json({ 
-        message: "User is already Unbanned." 
+      return res.status(403).json({
+        message: "User is already Unbanned.",
       });
     }
 
@@ -180,17 +187,15 @@ export const unBanUserByAdmin = async (req, res) => {
     //   reason: reason || "Terms of Service Violation",
     // });
 
-    res.status(200).json({ 
-      message: `User ${userToUnBan.username} unbanned successfully.` 
+    res.status(200).json({
+      message: `User ${userToUnBan.username} unbanned successfully.`,
     });
-    
   } catch (e) {
-    res.status(500).json({ 
-      message: e.message 
+    res.status(500).json({
+      message: e.message,
     });
   }
 };
-
 
 // admin.controller.js
 export const getModerationLogs = async (req, res) => {
@@ -205,5 +210,84 @@ export const getModerationLogs = async (req, res) => {
     res.status(200).json(logs);
   } catch (e) {
     res.status(500).json({ message: e.message });
+  }
+};
+
+export const getAdminRequest = async (req, res) => {
+  try {
+    // 1. Double check that the user is actually an admin
+    // (This should also be handled by your middleware)
+    if (req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json({ message: "Access denied. Admin clearance required." });
+    }
+
+    // 2. Fetch requests, populate sender info, and sort by newest first
+    const requests = await Request.find()
+      .populate("user", "username email profilePicture role")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      data: requests,
+    });
+  } catch (error) {
+    console.error("❌ Admin Fetch Error:", error.message);
+    res.status(500).json({ message: "Neural link failed: " + error.message });
+  }
+};
+
+export const updateRequestStatus = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { id } = req.params;
+    const { status, adminNotes } = req.body;
+
+    // 1. Update the Request document
+    const request = await Request.findByIdAndUpdate(
+      id,
+      { status, adminNotes, reviewedAt: Date.now() },
+      { new: true, session },
+    ).populate("user");
+
+    if (!request) {
+      throw new Error("Request protocol not found in registry.");
+    }
+
+    // 2. Special Logic: Author Upgrade Approval
+    if (status === "approved" && request.type === "author_upgrade") {
+      await User.findByIdAndUpdate(
+        request.user._id,
+        { role: "author" },
+        { session },
+      );
+    }
+
+    // 3. Notify the User of the decision
+    // This creates the notification within the transaction
+    await logNotification(
+      [
+        {
+          recipient: request.user._id,
+          type: "system",
+          message: `Your status for '${request.type.replace("_", " ")}' has been updated to ${status.toUpperCase()}.`,
+          link: "/profile/requests",
+        },
+      ],
+      { session },
+    );
+    await session.commitTransaction();
+    res
+      .status(200)
+      .json({ message: `Request ${status} successfully`, data: request });
+  } catch (error) {
+    await session.abortTransaction();
+    res.status(500).json({ message: error.message });
+  } finally {
+    session.endSession();
   }
 };

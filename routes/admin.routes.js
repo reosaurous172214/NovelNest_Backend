@@ -7,7 +7,9 @@ import {
     unBanUserByAdmin,
     deleteNovelByAdmin,
     getModerationLogs,
-    getDashboardStats
+    getDashboardStats,
+    getAdminRequest,
+    updateRequestStatus
 } from "../controllers/admin/admin.controller.js";
 import { isAdmin } from "../middleware/isAdminMiddleware.js";
 import protect from "../middleware/authMiddleware.js";
@@ -21,6 +23,8 @@ router.use(protect);
 // Fetches all users for the management dashboard
 router.get("/users", isAdmin, adminGetAllUsers);
 router.get("/stats",  isAdmin, getDashboardStats);
+router.get("/request",isAdmin,getAdminRequest);
+router.patch("/request/:id",isAdmin,updateRequestStatus);
 // @route   GET /api/admin/novels
 router.get("/novels", isAdmin, adminGetAllNovels);
 router.get("/novels/:novelId", isAdmin, getSingleNovel);

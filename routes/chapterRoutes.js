@@ -3,7 +3,8 @@ import {
     getChapterByNovel,
     getSingleChapter,
     updateChapter,
-    deleteChapter
+    deleteChapter,
+    unlockSingleChapter
 } from "../controllers/chapterControllers.js";
 import express from "express";
 import protect from "../middleware/authMiddleware.js";
@@ -14,6 +15,7 @@ router.post("/", protect, isAuthor,  createChapter);
 router.get("/novel/:novelId", getChapterByNovel);
 router.get("/:novelId/num/:chapterNumber",optionalProtect, getSingleChapter);
 router.put("/:chapterId", protect, isAuthor, updateChapter);
+router.post("/:chapterId/unlock",protect,unlockSingleChapter);
 router.delete("/:chapterId", protect, isAuthor, deleteChapter);
 export default router;
 

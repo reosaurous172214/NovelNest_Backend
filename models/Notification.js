@@ -9,7 +9,7 @@ const notificationSchema = new mongoose.Schema({
   sender: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Can be null for System/Chapter alerts
   type: {
     type: String,
-    enum: ["LIKE", "REPLY", "NEW_CHAPTER", "NEW_COMMENT", "MILESTONE"],
+    enum: ["LIKE", "REPLY", "NEW_CHAPTER", "NEW_COMMENT", "MILESTONE","EARNING"],
     required: true,
   },
   novelId: {
