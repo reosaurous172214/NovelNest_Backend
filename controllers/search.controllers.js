@@ -6,9 +6,9 @@ import Novel from "../models/Novel.js";
 export const getSuggestions = async (req, res) => {
     try {
         const { q } = req.query;
-
+ 
         // Don't search for very short strings to save resources
-        if (!q || q.length < 2) {
+        if (!q || q.length < 1) {
             return res.status(200).json([]);
         }
 
