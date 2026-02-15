@@ -2,8 +2,8 @@ import Stripe from "stripe";
 import mongoose from "mongoose";
 import Wallet from "../models/Wallet.js";
 import Transaction from "../models/Transaction.js";
+import User from "../models/User.js";
 
-// Safe Initialization: Prevents crash if .env isn't loaded yet
 const getStripe = () => {
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new Error("STRIPE_SECRET_KEY is missing from environment variables.");
@@ -11,7 +11,15 @@ const getStripe = () => {
   return new Stripe(process.env.STRIPE_SECRET_KEY);
 };
 
-/* ================= CREATE CHECKOUT SESSION ================= */
+// Centralized Pricing Registry
+const planPrices = {
+  monthly: 499,      // $4.99
+  quarterly: 1299,   // $12.99
+  "half-yearly": 2499, 
+  yearly: 3999,      
+};
+
+/* ================= 1. CREATE COIN SESSION ================= */
 export const createCheckoutSession = async (req, res) => {
   const stripe = getStripe();
   try {
@@ -20,9 +28,9 @@ export const createCheckoutSession = async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
-      // Use _id (Mongoose default) for the reference
       client_reference_id: req.user.id.toString(),
       metadata: {
+        type: "coin_purchase", 
         coinAmount: amount, 
       },
       line_items: [
@@ -33,7 +41,7 @@ export const createCheckoutSession = async (req, res) => {
               name: `${amount} NestCoins`,
               description: "Digital currency for NovelNest stories" 
             },
-            unit_amount: price*10 , // Cents
+            unit_amount: price * 100, // Dollars to Cents
           },
           quantity: 1,
         },
@@ -48,7 +56,49 @@ export const createCheckoutSession = async (req, res) => {
   }
 };
 
-/* ================= STRIPE WEBHOOK (ATOMIC) ================= */
+/* ================= 2. CREATE SUBSCRIPTION SESSION ================= */
+export const createSubscriptionSession = async (req, res) => {
+  const stripe = getStripe();
+  try {
+    const { plan } = req.body;
+    const priceInCents = planPrices[plan];
+
+    if (!priceInCents) {
+      return res.status(400).json({ error: "Invalid plan selected." });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment", 
+      client_reference_id: req.user.id.toString(),
+      metadata: {
+        type: "subscription_upgrade",
+        planId: plan,
+      },
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: `${plan.toUpperCase()} Premium Membership`,
+              description: "Unlocks 60% discount on all purchases and ad-free reading.",
+            },
+            unit_amount: priceInCents,
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.CLIENT_URL}/subscription`,
+    });
+
+    res.json({ url: session.url });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/* ================= 3. UNIFIED STRIPE WEBHOOK (UPDATED) ================= */
 
 export const stripeWebhook = async (req, res) => {
   const stripe = getStripe();
@@ -64,46 +114,94 @@ export const stripeWebhook = async (req, res) => {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
     const userId = session.client_reference_id;
-    const coins = parseInt(session.metadata.coinAmount);
+    const { type, coinAmount, planId } = session.metadata;
 
-    // ACID Transaction for money integrity
     const dbSession = await mongoose.startSession();
     dbSession.startTransaction();
 
     try {
-      // 1. Idempotency Check
       const existingTx = await Transaction.findOne({ stripeSessionId: session.id }).session(dbSession);
       if (existingTx) {
         await dbSession.abortTransaction();
         return res.status(200).json({ received: true });
       }
 
-      // 2. Atomic Update
-      const wallet = await Wallet.findOneAndUpdate(
-        { user: userId },
-        { $inc: { balance: coins } },
-        { new: true, session: dbSession ,
-          upsert: true, // This creates the wallet if it doesn't exist!
-    setDefaultsOnInsert: true
-        }
-      );
+      if (type === "subscription_upgrade") {
+        let expiryDate = new Date();
+        let updateData = {
+          "subscription.plan": planId,
+          "subscription.status": "active",
+          "subscription.startDate": new Date(),
+          "subscription.stripeCustomerId": session.customer
+        };
 
-      // 3. Create Audit Trail
-      await Transaction.create([{
-        wallet: wallet._id,
-        user: userId,
-        amount: coins,
-        type: 'deposit',
-        status: 'completed',
-        stripeSessionId: session.id,
-        balanceAfter: wallet.balance,
-        description: `Bought ${coins} NestCoins via Stripe`
-      }], { session: dbSession });
+        // Date Calculation Logic
+        if (planId === "monthly") expiryDate.setDate(expiryDate.getDate() + 30);
+        else if (planId === "quarterly") expiryDate.setDate(expiryDate.getDate() + 90);
+        else if (planId === "half-yearly") expiryDate.setDate(expiryDate.getDate() + 182);
+        else if (planId === "yearly") {
+          expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+
+          // --- BONUS NOVELS LOGIC FOR ANNUAL PLAN ---
+          // Select two popular novels that the user hasn't already unlocked
+          const userObj = await User.findById(userId).session(dbSession);
+          const alreadyUnlocked = userObj.unlockedNovels || [];
+
+          // Query for 2 novels not in the user's current list
+          const bonusNovels = await mongoose.model("Novel").find({
+            _id: { $nin: alreadyUnlocked }
+          })
+          .sort({ views: -1 }) // Sort by popularity
+          .limit(2)
+          .session(dbSession);
+
+          if (bonusNovels.length > 0) {
+            const bonusIds = bonusNovels.map(n => n._id);
+            // We use $addToSet to prevent duplicates just in case
+            updateData.$addToSet = { unlockedNovels: { $each: bonusIds } };
+          }
+        }
+
+        updateData["subscription.expiresAt"] = expiryDate;
+
+        // Update User Model with subscription and bonus novels
+        await User.findByIdAndUpdate(userId, updateData, { session: dbSession });
+
+        // Audit Trail
+        await Transaction.create([{
+          user: userId,
+          amount: session.amount_total / 100,
+          type: 'subscription',
+          status: 'completed',
+          stripeSessionId: session.id,
+          description: `Upgraded to ${planId} Premium ${planId === 'yearly' ? '(Includes 2 Bonus Novels)' : ''} (Expires: ${expiryDate.toDateString()})`
+        }], { session: dbSession });
+
+      } else if (type === "coin_purchase") {
+        // ... (Existing Coin Purchase Logic)
+        const coins = parseInt(coinAmount);
+        const wallet = await Wallet.findOneAndUpdate(
+          { user: userId },
+          { $inc: { balance: coins } },
+          { new: true, session: dbSession, upsert: true, setDefaultsOnInsert: true }
+        );
+
+        await Transaction.create([{
+          wallet: wallet._id,
+          user: userId,
+          amount: coins,
+          type: 'deposit',
+          status: 'completed',
+          stripeSessionId: session.id,
+          balanceAfter: wallet.balance,
+          description: `Bought ${coins} NestCoins`
+        }], { session: dbSession });
+      }
 
       await dbSession.commitTransaction();
     } catch (error) {
       await dbSession.abortTransaction();
-      console.error("Critical Webhook Error:", error.message);
+      console.error("Critical Payment Processing Error:", error.message);
     } finally {
       dbSession.endSession();
     }
@@ -111,13 +209,11 @@ export const stripeWebhook = async (req, res) => {
   res.json({ received: true });
 };
 
-/* ================= WALLET & HISTORY ================= */
-
-
+/* ================= 4. GETTERS ================= */
 export const getWalletBalance = async (req, res) => {
   try {
     const wallet = await Wallet.findOne({ user: req.user.id });
-    if (!wallet) return res.status(404).json({ message: "Wallet not found" });
+    if (!wallet) return res.status(404).json({ message: "No active wallet found." });
     res.status(200).json(wallet);
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -3,7 +3,8 @@ import {
   createCheckoutSession, 
   stripeWebhook, 
   getWalletBalance, 
-  getTransactionHistory 
+  getTransactionHistory, 
+  createSubscriptionSession
 } from "../controllers/payment.controller.js";
 import protect from "../middleware/authMiddleware.js";
 
@@ -12,7 +13,7 @@ const router = express.Router();
 // 1. Transaction Logic
 router.get("/wallet", protect, getWalletBalance);
 router.get("/history", protect, getTransactionHistory);
-
+router.post("/subscription", protect, createSubscriptionSession);
 // 2. Stripe Logic
 router.post("/create-checkout", protect, createCheckoutSession);
 //

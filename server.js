@@ -18,22 +18,22 @@ import commentRoutes from "./routes/comment.router.js";
 import notificationRoutes from "./routes/notification.router.js";
 import adminRoutes from "./routes/admin.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
-import payments from './routes/payment.routes.js';
+import payments from "./routes/payment.routes.js";
 import requestRoutes from "./routes/request.routers.js";
 // Services/Models
 import { novelSearchTrie } from "./services/search.service.js";
 import Novel from "./models/Novel.js";
 import { startBlockchainListener } from "./blockchain/listener.js";
-import { stripeWebhook } from './controllers/payment.controller.js';
+import { stripeWebhook } from "./controllers/payment.controller.js";
 
 dotenv.config();
 const app = express();
 
 // Stripe Webhook (Must be before express.json())
 app.post(
-  "/api/payments/webhook", 
-  express.raw({ type: "application/json" }), 
-  stripeWebhook
+  "/api/payments/webhook",
+  express.raw({ type: "application/json" }),
+  stripeWebhook,
 );
 
 app.use(cors());
@@ -44,10 +44,10 @@ app.use(express.urlencoded({ extended: true }));
 // Required for the temporary handshake during Google OAuth
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "novelhub_secret_key", 
+    secret: process.env.SESSION_SECRET || "novelhub_secret_key",
     resave: false,
     saveUninitialized: false,
-  })
+  }),
 );
 
 app.use(passport.initialize());
@@ -65,31 +65,44 @@ app.use("/api/lib", libRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/notifications", notificationRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api/payments', payments);
-app.use('/api/requests', requestRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/payments", payments);
+app.use("/api/requests", requestRoutes);
 app.get("/", (req, res) => {
   res.send("Novel API is running");
 });
 
 const getTitle = async () => {
-    const novels = await Novel.find({}, "title _id coverImage");
-    novels.forEach(n => {
-        novelSearchTrie.insert(n.title, { id: n._id, title: n.title, cover: n.coverImage });
+  const novels = await Novel.find({}, "title _id coverImage");
+  novels.forEach((n) => {
+    novelSearchTrie.insert(n.title, {
+      id: n._id,
+      title: n.title,
+      cover: n.coverImage,
     });
-    console.log("🚀 Search Trie Indexed");
+  });
+  console.log("🚀 Search Trie Indexed");
 };
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB connected");
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 10000, // Wait 10s for college wifi to respond
+      socketTimeoutMS: 45000, // Close inactive sockets after 45s
+      family: 4, // Force IPv4 (college networks often struggle with IPv6)
+    });
+    console.log("MongoDB connected 🚀 ");
     startBlockchainListener();
     getTitle(); 
-  })
-  .catch(err => console.error("Mongo error:", err.message));
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+    // connection success logic here...
+  } catch (err) {
+    console.error("Connection failed:", err.message);
+    setTimeout(connectDB, 5000);
+  }
+};
+connectDB();

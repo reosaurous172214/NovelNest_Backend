@@ -35,7 +35,7 @@ const userSchema = new mongoose.Schema(
     googleId: {
       type: String,
       unique: true,
-      sparse: true, // Only indexed if the field exists
+      sparse: true,
     },
     username: {
       type: String,
@@ -51,9 +51,9 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
     otp: {
-    code: { type: String },
-    expiresAt: { type: Date }
-  },
+      code: { type: String },
+      expiresAt: { type: Date },
+    },
     mobile: {
       type: String,
       trim: true,
@@ -65,7 +65,6 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      // required: true,
     },
 
     /* -------- LOCATION -------- */
@@ -80,7 +79,8 @@ const userSchema = new mongoose.Schema(
     preferences: {
       theme: {
         type: String,
-        enum: ["light", "dark", "system"],
+        // Updated to match your frontend options
+        enum: ["light", "dark", "system", "default", "cyberpunk", "emerald"],
         default: "light",
       },
       language: {
@@ -124,11 +124,11 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
-   wallet: {
+    wallet: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Wallet",
       index: true,
-      unique: true
+      unique: true,
     },
 
     /* -------- OWNED CONTENT -------- */
@@ -138,7 +138,12 @@ const userSchema = new mongoose.Schema(
         ref: "Chapter",
       },
     ],
-
+    unlockedNovels: [
+      { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: "Novel" ,
+      },
+    ],
     /* -------- READING HISTORY -------- */
     history: {
       type: [readingHistorySchema],
@@ -176,17 +181,37 @@ const userSchema = new mongoose.Schema(
       },
     },
 
-    /* -------- SUBSCRIPTION -------- */
+    /* -------- UPDATED SUBSCRIPTION LOGIC -------- */
     subscription: {
       plan: {
         type: String,
-        enum: ["free", "premium"],
+        enum: ["free", "monthly", "quarterly", "half-yearly", "yearly"],
         default: "free",
       },
+      status: {
+        type: String,
+        enum: ["active", "expired", "cancelled"],
+        default: "active",
+      },
+      startDate: Date,
       expiresAt: Date,
+      stripeCustomerId: String, // Good to have for managing refunds/billing later
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true }, // Ensure virtuals are included when sending to frontend
+    toObject: { virtuals: true },
+  },
 );
+
+/* ================= VIRTUALS ================= */
+
+// This checks if the user is currently premium based on date
+userSchema.virtual("isPremium").get(function () {
+  if (this.subscription.plan === "free") return false;
+  if (!this.subscription.expiresAt) return false;
+  return this.subscription.expiresAt > Date.now();
+});
 
 export default mongoose.model("User", userSchema);

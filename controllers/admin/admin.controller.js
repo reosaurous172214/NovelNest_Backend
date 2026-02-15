@@ -4,6 +4,7 @@ import ModerationLog from "../../models/ModerationLog.js"; // Import the log mod
 import Request from "../../models/Request.js";
 import mongoose from "mongoose";
 import { logNotification } from "../../services/notification.service.js";
+import Transaction from "../../models/Transaction.js"; 
 // Novel Admin Controller
 // adminController.js
 export const getDashboardStats = async (req, res) => {
@@ -87,7 +88,12 @@ export const deleteNovelByAdmin = async (req, res) => {
     await ModerationLog.create({
       adminId: req.user.id,
       actionType: "DELETE_NOVEL",
+      targetModel: 'Novel',
       targetId: novelId,
+      targetMetadata: {
+        name: deletedNovel.title,
+        image: deletedNovel.coverImage
+      },
       reason: req.body.reason || "Policy Violation",
     });
 
@@ -101,7 +107,50 @@ export const deleteNovelByAdmin = async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 };
+export const deleteUserByAdmin = async (req, res) => {
+  try {
+    const { userId } = req.params;
 
+    // 1. Find the user first to ensure they exist
+    const userToDelete = await User.findById(userId);
+
+    if (!userToDelete) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "User not found in the registry." 
+      });
+    }
+
+    // 2. Create the Moderation Log BEFORE deleting the user
+    // This ensures the database integrity for the targetId reference
+    await ModerationLog.create({
+      adminId: req.user.id, // Support both formats
+      actionType: "DELETE_USER",
+      targetModel: 'User',
+      targetId: userId,
+      targetMetadata: {
+        name: userToDelete.username,
+        image: userToDelete.profilePicture
+      },
+      reason:  "Policy Violation",
+    });
+
+    // 3. Now perform the deletion
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({
+      success: true,
+      message: "User deleted successfully.",
+      deletedId: userId,
+    });
+  } catch (e) {
+    console.error("Delete Controller Error:", e);
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error during deletion: " + e.message 
+    });
+  }
+};
 // User Admin Controller
 //Get all Users
 export const adminGetAllUsers = async (req, res) => {
@@ -148,6 +197,7 @@ export const banUserByAdmin = async (req, res) => {
     await ModerationLog.create({
       adminId: req.user.id,
       actionType: "BAN_USER",
+      targetModel: 'User',
       targetId: userId,
       reason: reason || "Terms of Service Violation",
     });
@@ -201,18 +251,64 @@ export const unBanUserByAdmin = async (req, res) => {
 export const getModerationLogs = async (req, res) => {
   try {
     const logs = await ModerationLog.find()
-      .populate("adminId", "username") // Still good to have the admin name
+      .populate({
+        path: "adminId",
+        select: "username profilePicture"
+      })
+      // We populate targetId without a model because refPath handles it.
+      // Note: If targetId is null after this, the object was likely deleted.
+      .populate("targetId") 
       .sort({ timestamp: -1 })
-      .limit(20)
+      .limit(50)
       .lean();
 
-    // No mapping, no lookups. Just send the raw logs.
-    res.status(200).json(logs);
+    const safeLogs = logs.map(log => {
+      // Determine if we are looking for User data or Novel data
+      const isUserType = log.targetModel === 'User';
+      
+      return {
+        ...log,
+        // If targetId is a string (ID) and not an object, population failed.
+        // If targetId is null, the document was deleted.
+        targetId: (log.targetId && typeof log.targetId === 'object') 
+          ? log.targetId 
+          : { 
+              _id: log.targetId || "DELETED",
+              username: isUserType ? "Deleted Member" : undefined,
+              title: !isUserType ? "Deleted Content" : undefined,
+              profilePicture: null,
+              coverImage: null
+            }
+      };
+    });
+
+    res.status(200).json(safeLogs);
   } catch (e) {
-    res.status(500).json({ message: e.message });
+    console.error("Audit Sync Error:", e);
+    res.status(500).json({ message: "Error retrieving audit logs." });
   }
 };
+export const deleteModerationLogs = async (req, res) => {
+  try {
+    const { logIds, clearAll } = req.body;
 
+    if (clearAll) {
+      // Wipes the entire ledger
+      await ModerationLog.deleteMany({});
+      return res.status(200).json({ message: "Registry cleared successfully." });
+    }
+
+    if (!logIds || logIds.length === 0) {
+      return res.status(400).json({ message: "No logs specified for deletion." });
+    }
+
+    // Deletes specific selected logs
+    await ModerationLog.deleteMany({ _id: { $in: logIds } });
+    res.status(200).json({ message: "Selected logs deleted successfully." });
+  } catch (e) {
+    res.status(500).json({ message: "System Error: Deletion protocol failed." });
+  }
+};
 export const getAdminRequest = async (req, res) => {
   try {
     // 1. Double check that the user is actually an admin
@@ -289,5 +385,123 @@ export const updateRequestStatus = async (req, res) => {
     res.status(500).json({ message: error.message });
   } finally {
     session.endSession();
+  }
+};
+// Fetch all users for PDF export (No limit)
+export const exportAllUsers = async (req, res) => {
+  try {
+    // Select specific fields to keep the PDF lightweight
+    const users = await User.find({}, "username email walletAddress nestCoins createdAt isBanned")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch user database for export." });
+  }
+};
+
+// Fetch all transactions for PDF export
+// Note: You must have a Transaction model imported to use this.
+
+export const exportAllTransactions = async (req, res) => {
+  try {
+    const transactions = await Transaction.find()
+      .populate("user", "username") // Include username for the report
+      .sort({ createdAt: -1 });
+    res.status(200).json(transactions);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch transaction ledger for export." });
+  }
+};
+// admin.controller.js
+// controllers/adminAnalyticsController.js
+
+
+export const getAnalyticsData = async (req, res) => {
+  try {
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
+    // Using Promise.allSettled so one failing query doesn't crash the whole response
+    const results = await Promise.allSettled([
+      // 1. Core Summary Stats
+      Transaction.aggregate([
+        { $match: { status: "completed" } },
+        { $group: { _id: null, totalRevenue: { $sum: "$amount" } } }
+      ]),
+
+      // 2. Monthly Revenue (Current Month)
+      Transaction.aggregate([
+        { $match: { 
+            status: "completed", 
+            createdAt: { $gte: new Date(now.getFullYear(), now.getMonth(), 1) } 
+        } },
+        { $group: { _id: null, monthlyRevenue: { $sum: "$amount" }, count: { $sum: 1 } } }
+      ]),
+
+      // 3. Revenue Trend (6 Months)
+      Transaction.aggregate([
+        { $match: { createdAt: { $gte: sixMonthsAgo }, status: "completed" } },
+        {
+          $group: {
+            _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
+            amount: { $sum: "$amount" }
+          }
+        },
+        { $sort: { "_id.year": 1, "_id.month": 1 } }
+      ]),
+
+      // 4. Genre Popularity (from Novel schema)
+      Novel.aggregate([
+        { $unwind: "$genres" },
+        { $group: { _id: "$genres", count: { $sum: 1 }, avgViews: { $avg: "$views" } } },
+        { $sort: { count: -1 } },
+        { $limit: 5 }
+      ]),
+
+      // 5. Top Novels (Virality Score)
+      Novel.aggregate([
+        { $project: { 
+            title: 1, 
+            genres: 1, 
+            views: 1, 
+            revenue: { $literal: 0 }, // If you don't store revenue on Novel yet
+            favCount: { $size: { $ifNull: ["$favoritedBy", []] } },
+            viralityScore: {
+              $cond: [
+                { $gt: ["$views", 0] },
+                { $divide: [{ $size: { $ifNull: ["$favoritedBy", []] } }, "$views"] },
+                0
+              ]
+            }
+        }},
+        { $sort: { viralityScore: -1 } },
+        { $limit: 5 }
+      ])
+    ]);
+
+    // Format the results safely
+    const getValue = (index, path, fallback) => {
+      const res = results[index];
+      return res.status === 'fulfilled' ? (res.value[0]?.[path] || fallback) : fallback;
+    };
+
+    res.status(200).json({
+      summary: {
+        totalRevenue: getValue(0, 'totalRevenue', 0),
+        monthlyRevenue: getValue(1, 'monthlyRevenue', 0),
+        growthRate: 12.5, // You can calculate this by comparing current vs last month
+        activeDeals: getValue(1, 'count', 0)
+      },
+      charts: {
+        revenue: results[2].status === 'fulfilled' ? results[2].value : [],
+        genres: results[3].status === 'fulfilled' ? results[3].value : []
+      },
+      topContent: results[4].status === 'fulfilled' ? results[4].value : []
+    });
+
+  } catch (err) {
+    console.error("CRITICAL ANALYTICS ERROR:", err);
+    res.status(500).json({ message: "Server encountered an error processing analytics" });
   }
 };

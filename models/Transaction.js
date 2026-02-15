@@ -4,7 +4,7 @@ const transactionSchema = new mongoose.Schema({
   wallet: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Wallet",
-    required: true,
+    required: false,
     index: true
   },
   user: { // Redundant but helpful for quick queries without populating wallet
@@ -19,7 +19,7 @@ const transactionSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ["deposit", "purchase", "payout", "bonus","withdrawal"],
+    enum: ["deposit", "purchase", "payout", "bonus","withdrawal", "subscription"],
     required: true
   },
   status: {

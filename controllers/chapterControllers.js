@@ -176,6 +176,9 @@ export const getSingleChapter = async (req, res) => {
       isUnlocked = user.unlockedChapters.some(
         (id) => id.toString() === chapter._id.toString()
       );
+      isUnlocked = isUnlocked || user.unlockedNovels.some(
+        (id) => id.toString() === novelId
+      );
     }
 
     if (chapterNo > limit && !isUnlocked) {
@@ -275,15 +278,16 @@ export const unlockSingleChapter = async (req, res) => {
     }
 
     // --- 3. THE TRANSACTION LOGIC ---
-    user.wallet.balance -= chapterCost;
-    user.wallet.totalSpent += chapterCost;
+    const isPremium = user.subscription.plan === "free";
+    user.wallet.balance -= isPremium?chapterCost:0.4*chapterCost;
+    user.wallet.totalSpent += isPremium?chapterCost:0.4*chapterCost;
     user.unlockedChapters.push(chapterId);
 
     // Create Transaction record consistent with your Stripe deposit format
     await Transaction.create({
       wallet: user.wallet._id,
       user: userId,
-      amount: -chapterCost, // Negative value for withdrawal
+      amount: -(isPremium?chapterCost:0.4*chapterCost), // Negative value for withdrawal
       type: 'withdrawal', 
       status: 'completed',
       balanceAfter: user.wallet.balance,

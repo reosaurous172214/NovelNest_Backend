@@ -1,9 +1,12 @@
 import mongoose from "mongoose";
 import Novel from "../models/Novel.js";
 import { logActivity } from "../services/activity.service.js";
+import Transaction from "../models/Transaction.js";
 import { novelSearchTrie } from "../services/search.service.js";
+import { logPayAuthor } from "../services/author.wallet.js";
 
 import Review from "../models/Review.js";
+import User from "../models/User.js";
 /* ---------------- HELPER ---------------- */
 const normalizeArray = (value) => {
   if (!value) return [];
@@ -354,5 +357,105 @@ export const rateNovel = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const unlockSingleNovel = async (req, res) => {
+  try {
+    // 1. Fetch Data - Ensure novelId matches your route parameter
+    const { novelId } = req.params;
+    const novelCost = 2000; 
+
+    const novel = await Novel.findById(novelId).populate('author');
+    if (!novel) return res.status(404).json({ message: "Novel not found." });
+
+    const userId = req.user.id;
+    // Populate wallet to access balance
+    const user = await User.findById(userId).populate('wallet');
+    
+    if (!user || !user.wallet) {
+      return res.status(404).json({ message: "User or Wallet not found." });
+    }
+
+    // 2. Access Check - Using 'unlockedNovels' to match User Schema
+    const alreadyUnlocked = user.unlockedNovels.some(
+      (id) => id.toString() === novelId.toString()
+    );
+
+    if (alreadyUnlocked) {
+      return res.status(400).json({ message: "Novel already in your library." });
+    }
+
+    // 3. Calculation & Discount Logic
+    // logic: isPremium ? (40% of cost) : full cost
+    const isPremium = user.subscription.plan !== "free"; 
+    const finalCost = isPremium ? (novelCost * 0.4) : novelCost;
+
+    if (user.wallet.balance < finalCost) {
+      return res.status(403).json({ message: "Insufficient NestCoins." });
+    }
+
+    // 4. THE TRANSACTION LOGIC
+    user.wallet.balance -= finalCost;
+    user.wallet.totalSpent += finalCost;
+    user.unlockedNovels.push(novelId); // Fixed field name
+
+    // Create Transaction record for audit trail
+    await Transaction.create({
+      wallet: user.wallet._id,
+      user: userId,
+      amount: -finalCost, 
+      type: 'withdrawal', 
+      status: 'completed',
+      balanceAfter: user.wallet.balance,
+      description: `Unlocked Full Novel: ${novel.title}`
+    });
+
+    // 5. Persistence
+    await Promise.all([
+      user.wallet.save(),
+      user.save()
+    ]);
+
+    // 6. Background Tasks (Cleaned up 'chapter' references)
+    await logActivity({
+      userId: userId,
+      actionType: "BOUGHT_NOVEL",
+      targetType: "PURCHASE",
+      targetId: novelId,
+      meta: { novelTitle: novel.title },
+    });
+
+    // Pay author 70% of the price
+    const paymentSuccess = await logPayAuthor({ novel, Price: finalCost });
+
+    if (paymentSuccess) {
+      const authorId = novel.author._id || novel.author;
+      await Promise.all([
+        Notification.create({
+          recipient: authorId,
+          sender: user._id,
+          type: "EARNING",
+          message: `You earned coins from a full novel purchase: ${novel.title}`,
+          data: { novelId }
+        }),
+        logNotification({
+          recipient: authorId,
+          sender: user._id,
+          type: "EARNING",
+          novelId: novel._id
+        })
+      ]);
+    }
+
+    console.log("novel unlocked succesfully");
+    res.status(200).json({ 
+      message: "Novel Unlocked Successfully.",
+      remainingBalance: user.wallet.balance 
+    });
+
+  } catch (e) {
+    console.error("Unlock Error:", e.message);
+    res.status(500).json({ message: "Error during unlock process." });
   }
 };

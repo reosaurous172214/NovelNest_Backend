@@ -8,13 +8,13 @@ import {
   deleteNovel,
   togglePublish,
   getRecommendedNovels,
-  rateNovel
+  rateNovel,
+  unlockSingleNovel,
 } from "../controllers/novelControllers.js";
 
 import protect from "../middleware/authMiddleware.js";
 import {upload} from "../middleware/upload.js";
 import { isAuthor } from "../middleware/isAuthorMiddleware.js";
-import { isAdmin } from "../middleware/isAdminMiddleware.js";
 
 const router = express.Router();
 router.get("/", getAllPublishedNovels);
@@ -24,7 +24,9 @@ router.get("/:id", getNovelById);
 router.post("/", protect, isAuthor, upload.single("coverImage"), createNovel);
 router.put("/:id", protect, isAuthor, upload.single("coverImage"), updateNovel);
 router.delete("/:id", protect, isAuthor, deleteNovel);
+router.post("/:novelId/unlock",protect,unlockSingleNovel);
 router.patch("/:id/publish", protect, togglePublish);
+
 router.post('/:id/rate', protect, rateNovel);
 
 export default router;
