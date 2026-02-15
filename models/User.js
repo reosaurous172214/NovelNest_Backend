@@ -129,6 +129,7 @@ const userSchema = new mongoose.Schema(
       ref: "Wallet",
       index: true,
       unique: true,
+      sparse:true,
     },
 
     /* -------- OWNED CONTENT -------- */
