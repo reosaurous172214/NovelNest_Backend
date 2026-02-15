@@ -3,9 +3,10 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
-import session from "express-session"; // ADD THIS
-import passport from "passport"; // ADD THIS
-import "./config/passport.js"; // ADD THIS (Ensures strategy is loaded)
+import helmet from "helmet"; // Added for production security
+import session from "express-session";
+import passport from "passport";
+import "./config/passport.js";
 
 // Routes
 import authRoutes from "./routes/authRoutes.js";
@@ -20,43 +21,74 @@ import adminRoutes from "./routes/admin.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
 import payments from "./routes/payment.routes.js";
 import requestRoutes from "./routes/request.routers.js";
+
 // Services/Models
 import { novelSearchTrie } from "./services/search.service.js";
 import Novel from "./models/Novel.js";
 import { startBlockchainListener } from "./blockchain/listener.js";
 import { stripeWebhook } from "./controllers/payment.controller.js";
+import errorHandler from "./middleware/errorMiddleware.js";
 
 dotenv.config();
 const app = express();
 
-// Stripe Webhook (Must be before express.json())
+/* ================= PRE-MIDDLEWARE ================= */
+
+// 1. Stripe Webhook (Must be before express.json() to maintain raw body)
 app.post(
   "/api/payments/webhook",
   express.raw({ type: "application/json" }),
   stripeWebhook,
 );
 
-app.use(cors());
+// 2. Security & Headers
+app.use(helmet({
+  crossOriginResourcePolicy: false, // Allows images to be loaded across domains
+}));
+
+// 3. CORS Configuration (Crucial for Vercel + Google Auth)
+const allowedOrigins = [
+  "http://localhost:3000",
+  process.env.CLIENT_URL, // Ensure this is set to your Vercel URL in Render
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /* ================= PASSPORT & SESSION ================= */
-// Required for the temporary handshake during Google OAuth
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "novelhub_secret_key",
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production", // true if using HTTPS
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    }
   }),
 );
 
 app.use(passport.initialize());
 app.use(passport.session());
-/* ====================================================== */
 
+/* ================= STATIC FILES ================= */
+// Serves local images from utilities folder
 app.use("/utilities", express.static(path.join(process.cwd(), "utilities")));
 
-// API Routes
+/* ================= API ROUTES ================= */
 app.use("/api/auth", authRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/novels", novelRoutes);
@@ -69,40 +101,63 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/payments", payments);
 app.use("/api/requests", requestRoutes);
+
+// Health Check for Render
 app.get("/", (req, res) => {
-  res.send("Novel API is running");
+  res.status(200).json({ status: "Neural Hub Online", timestamp: new Date() });
 });
 
+app.use((req, res, next) => {
+  const error = new Error(`Not Found - ${req.originalUrl}`);
+  error.statusCode = 404;
+  next(error);
+});
+
+// Final error handler
+app.use(errorHandler);
+/* ================= INITIALIZATION LOGIC ================= */
+
 const getTitle = async () => {
-  const novels = await Novel.find({}, "title _id coverImage");
-  novels.forEach((n) => {
-    novelSearchTrie.insert(n.title, {
-      id: n._id,
-      title: n.title,
-      cover: n.coverImage,
+  try {
+    const novels = await Novel.find({}, "title _id coverImage");
+    novels.forEach((n) => {
+      novelSearchTrie.insert(n.title, {
+        id: n._id,
+        title: n.title,
+        cover: n.coverImage,
+      });
     });
-  });
-  console.log("🚀 Search Trie Indexed");
+    console.log("🚀 Search Trie Indexed");
+  } catch (err) {
+    console.error("Trie Indexing Failed:", err.message);
+  }
 };
 
 const connectDB = async () => {
   try {
+    mongoose.set('strictQuery', false);
     await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 10000, // Wait 10s for college wifi to respond
-      socketTimeoutMS: 45000, // Close inactive sockets after 45s
-      family: 4, // Force IPv4 (college networks often struggle with IPv6)
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      family: 4, 
     });
-    console.log("MongoDB connected 🚀 ");
+    
+    console.log("MongoDB connected 🚀");
+    
+    // Background Services
     startBlockchainListener();
     getTitle(); 
+
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
-    // connection success logic here...
+
   } catch (err) {
-    console.error("Connection failed:", err.message);
+    console.error("Database Connection failed:", err.message);
+    // Retry connection every 5 seconds
     setTimeout(connectDB, 5000);
   }
 };
+
 connectDB();
