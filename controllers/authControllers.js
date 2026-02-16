@@ -47,7 +47,11 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
-    const profilePicture = req.file ? `/utilities/${req.file.filename}` : "/utilities/dummy.png";
+    // UPDATED: Use req.file.path for Cloudinary URL, otherwise use a default cloud-hosted dummy image
+    const profilePicture = req.file 
+      ? req.file.path 
+      : "https://res.cloudinary.com/demo/image/upload/d_avatar.png/v1/user_default.png";
+
     const hashed = await bcrypt.hash(password, 10);
     
     const user = await User.create({
@@ -108,7 +112,6 @@ export const loginUser = async (req, res) => {
 /* ================= GET LOGGED-IN USER ================= */
 export const getMe = async (req, res) => {
   try {
-    // Use _id to be safe with MongoDB
     const user = await User.findById(req.user._id || req.user.id).select("-password");
     if (!user) return res.status(404).json({ message: "User not found" });
     
@@ -148,7 +151,10 @@ export const updateUserProfile = async (req, res) => {
       notifications: req.body.notifications ?? user.preferences?.notifications ?? true,
     };
 
-    if (req.file) user.profilePicture = `/utilities/${req.file.filename}`;
+    // UPDATED: Capture Cloudinary Secure URL from Multer
+    if (req.file) {
+      user.profilePicture = req.file.path;
+    }
 
     await user.save();
     res.json(user);
