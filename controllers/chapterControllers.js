@@ -266,7 +266,7 @@ export const unlockSingleChapter = async (req, res) => {
     }
     let userWallet = user.wallet;
     if (!userWallet) {// Ensure Wallet model is loaded
-      userWallet = await Wallet.find({user:req.user.id});
+      userWallet = await Wallet.findOne({user:req.user.id});
       // Link the new wallet to the user document
       user.wallet = userWallet._id;
       await user.save();
