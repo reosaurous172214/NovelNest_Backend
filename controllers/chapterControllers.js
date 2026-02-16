@@ -1,6 +1,7 @@
 import { CHAPTER_LIMITS } from "../config/chapterLimit.js";
 import Chapter from "../models/Chapter.js";
 import Transaction from "../models/Transaction.js";
+import Wallet from "../models/Wallet.js";
 import Novel from "../models/Novel.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
@@ -260,10 +261,16 @@ export const unlockSingleChapter = async (req, res) => {
     const userId = req.user._id || req.user.id;
     const user = await User.findById(userId).populate('wallet');
     
-    if (!user || !user.wallet) {
+    if (!user ) {
       return res.status(404).json({ message: "User or Wallet not found." });
     }
-
+    let userWallet = user.wallet;
+    if (!userWallet) {// Ensure Wallet model is loaded
+      userWallet = await Wallet.find({user:req.user.id});
+      // Link the new wallet to the user document
+      user.wallet = userWallet._id;
+      await user.save();
+    }
     // 2. Access Check
     const alreadyUnlocked = user.unlockedChapters.some(
       (id) => id.toString() === chapterId.toString()

@@ -373,8 +373,15 @@ export const unlockSingleNovel = async (req, res) => {
     // Populate wallet to access balance
     const user = await User.findById(userId).populate('wallet');
     
-    if (!user || !user.wallet) {
+    if (!user ) {
       return res.status(404).json({ message: "User or Wallet not found." });
+    }
+    let userWallet = user.wallet;
+    if (!userWallet) {// Ensure Wallet model is loaded
+      userWallet = await Wallet.find({user:req.user.id});
+      // Link the new wallet to the user document
+      user.wallet = userWallet._id;
+      await user.save();
     }
 
     // 2. Access Check - Using 'unlockedNovels' to match User Schema
