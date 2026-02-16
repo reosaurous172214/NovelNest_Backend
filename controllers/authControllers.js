@@ -8,12 +8,10 @@ import passport from "passport";
 
 /* ================= GOOGLE AUTHENTICATION ================= */
 
-// Initiates the Google OAuth flow
 export const googleAuth = passport.authenticate("google", {
   scope: ["profile", "email"],
 });
 
-// Handles the logic after Google redirects back to the server
 export const googleAuthCallback = async (req, res) => {
   try {
     const user = req.user;
@@ -22,22 +20,19 @@ export const googleAuthCallback = async (req, res) => {
       return res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
     }
 
-    // Check if user is restricted
     if (user.isBanned) {
       return res.redirect(`${process.env.CLIENT_URL}/login?error=restricted`);
     }
 
-    // Generate JWT (consistent with loginUser logic)
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    // Redirect back to frontend success page
     res.redirect(`${process.env.CLIENT_URL}/auth-success?token=${token}`);
-  } catch (err) {
-    console.error("Google Callback Error:", err);
+  } catch (error) {
+    console.error("Google Callback Error:", error);
     res.redirect(`${process.env.CLIENT_URL}/login?error=server_error`);
   }
 };
@@ -74,8 +69,8 @@ export const registerUser = async (req, res) => {
       token,
       user: { id: user._id, username: user.username, email: user.email },
     });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -93,7 +88,6 @@ export const loginUser = async (req, res) => {
     if (user.isBanned)
       return res.status(400).json({ message: "User is restricted from login!" });
 
-    // Handle cases where a Google-only user tries to login via password
     if (!user.password) {
       return res.status(400).json({ message: "Please use 'Continue with Google' for this account." });
     }
@@ -106,30 +100,31 @@ export const loginUser = async (req, res) => {
     });
     
     res.json({ token, user });
-  } catch (err) {
-    res.status(500).json({ message: "Server error during login" });
+  } catch (error) {
+    res.status(500).json({ message: error.message || "Server error during login" });
   }
 };
 
 /* ================= GET LOGGED-IN USER ================= */
 export const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    // Use _id to be safe with MongoDB
+    const user = await User.findById(req.user._id || req.user.id).select("-password");
     if (!user) return res.status(404).json({ message: "User not found" });
     
     if (user.isBanned)
       return res.status(400).json({ message: "User is restricted from login!" });
     
     res.json(user);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to fetch profile" });
+  } catch (error) {
+    res.status(500).json({ message: error.message || "Failed to fetch profile" });
   }
 };
 
 /* ================= UPDATE PROFILE ================= */
 export const updateUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id || req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
     
     if (user.isBanned)
@@ -157,41 +152,21 @@ export const updateUserProfile = async (req, res) => {
 
     await user.save();
     res.json(user);
-  } catch (err) {
-    res.status(500).json({ message: "Profile update failed" });
-  }
-};
-
-/* ================= UPDATE PRIVACY ================= */
-export const updatePrivacy = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    user.privacy = {
-      showEmail: req.body.showEmail ?? user.privacy?.showEmail ?? false,
-      showMobile: req.body.showMobile ?? user.privacy?.showMobile ?? false,
-      showLocation: req.body.showLocation ?? user.privacy?.showLocation ?? true,
-    };
-
-    await user.save();
-    res.json(user.privacy);
-  } catch (err) {
-    res.status(500).json({ message: "Privacy update failed" });
+  } catch (error) {
+    res.status(500).json({ message: error.message || "Profile update failed" });
   }
 };
 
 /* ================= CHANGE PASSWORD ================= */
 export const changePassword = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id || req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const { currentPassword, newPassword } = req.body;
     
-    // Check if user even has a password (Google users)
     if (!user.password) {
-      return res.status(400).json({ message: "Google accounts do not have a password to change." });
+      return res.status(400).json({ message: "Google accounts do not have a password." });
     }
 
     const match = await bcrypt.compare(currentPassword, user.password);
@@ -201,35 +176,8 @@ export const changePassword = async (req, res) => {
     await user.save();
     
     res.json({ message: "Password changed successfully" });
-  } catch (err) {
-    res.status(500).json({ message: "Password change failed" });
-  }
-};
-
-/* ================= READING STATS ================= */
-export const getReadingStats = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    res.json(user.readingStats);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to fetch reading stats" });
-  }
-};
-
-/* ================= WALLET ================= */
-export const walletConnect = async (req, res) => {
-  try {
-    const { walletAddress } = req.body;
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { walletAddress: walletAddress.toLowerCase() },
-      { new: true }
-    );
-    res.status(200).json({ success: true, walletAddress: user.walletAddress });
   } catch (error) {
-    res.status(500).json({ message: "Failed to update wallet", error: error.message });
+    res.status(500).json({ message: error.message || "Password change failed" });
   }
 };
 
@@ -259,7 +207,8 @@ export const sendOTP = async (req, res) => {
 
     res.status(200).json({ success: true, message: "OTP sent!" });
   } catch (error) {
-    res.status(500).json({ message: error});
+    console.error("OTP Error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -280,6 +229,49 @@ export const resetPassword = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Password reset successful!" });
   } catch (error) {
-    res.status(500).json({ message: "Reset failed" });
+    res.status(500).json({ message: error.message || "Reset failed" });
+  }
+};
+
+/* ================= OTHERS ================= */
+export const updatePrivacy = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id || req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.privacy = {
+      showEmail: req.body.showEmail ?? user.privacy?.showEmail ?? false,
+      showMobile: req.body.showMobile ?? user.privacy?.showMobile ?? false,
+      showLocation: req.body.showLocation ?? user.privacy?.showLocation ?? true,
+    };
+
+    await user.save();
+    res.json(user.privacy);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getReadingStats = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id || req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user.readingStats);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const walletConnect = async (req, res) => {
+  try {
+    const { walletAddress } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.user._id || req.user.id,
+      { walletAddress: walletAddress.toLowerCase() },
+      { new: true }
+    );
+    res.status(200).json({ success: true, walletAddress: user.walletAddress });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };

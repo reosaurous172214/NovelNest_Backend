@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
-import helmet from "helmet"; // Added for production security
+import helmet from "helmet";
 import session from "express-session";
 import passport from "passport";
 import "./config/passport.js";
@@ -25,32 +25,36 @@ import requestRoutes from "./routes/request.routers.js";
 // Services/Models
 import { novelSearchTrie } from "./services/search.service.js";
 import Novel from "./models/Novel.js";
+import User from "./models/User.js"; // Needed for index cleanup
 import { startBlockchainListener } from "./blockchain/listener.js";
 import { stripeWebhook } from "./controllers/payment.controller.js";
 import errorHandler from "./middleware/errorMiddleware.js";
 
 dotenv.config();
 const app = express();
+
+// Required for Render/Vercel to handle secure cookies correctly
 app.set("trust proxy", 1);
 
 /* ================= PRE-MIDDLEWARE ================= */
 
-// 1. Stripe Webhook (Must be before express.json() to maintain raw body)
+// 1. Stripe Webhook (MUST be before express.json() for raw body verification)
 app.post(
   "/api/webhook",
   express.raw({ type: "application/json" }),
-  stripeWebhook,
+  stripeWebhook
 );
 
 // 2. Security & Headers
 app.use(helmet({
-  crossOriginResourcePolicy: false, // Allows images to be loaded across domains
+  crossOriginResourcePolicy: false, 
 }));
 
-// 3. CORS Configuration (Crucial for Vercel + Google Auth)
+// 3. CORS Configuration
 const allowedOrigins = [
   "http://localhost:3000",
-  process.env.CLIENT_URL, // Ensure this is set to your Vercel URL in Render
+  "http://localhost:5173",
+  process.env.CLIENT_URL, 
 ];
 
 app.use(cors({
@@ -66,6 +70,7 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
+// 4. Standard Body Parsers (placed after Webhook)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -76,7 +81,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: process.env.NODE_ENV === "production", // true if using HTTPS
+      secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     }
   }),
@@ -86,7 +91,6 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 /* ================= STATIC FILES ================= */
-// Serves local images from utilities folder
 app.use("/utilities", express.static(path.join(process.cwd(), "utilities")));
 
 /* ================= API ROUTES ================= */
@@ -103,19 +107,20 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/payments", payments);
 app.use("/api/requests", requestRoutes);
 
-// Health Check for Render
+// Health Check
 app.get("/", (req, res) => {
   res.status(200).json({ status: "Neural Hub Online", timestamp: new Date() });
 });
 
+/* ================= ERROR HANDLING ================= */
 app.use((req, res, next) => {
   const error = new Error(`Not Found - ${req.originalUrl}`);
   error.statusCode = 404;
   next(error);
 });
 
-// Final error handler
 app.use(errorHandler);
+
 /* ================= INITIALIZATION LOGIC ================= */
 
 const getTitle = async () => {
@@ -144,6 +149,14 @@ const connectDB = async () => {
     });
     
     console.log("MongoDB connected 🚀");
+
+    // CRITICAL: Drop problematic wallet index that crashes OTP/Registration
+    try {
+      await User.collection.dropIndex("wallet_1");
+      console.log("Cleaned up conflicting wallet index.");
+    } catch (indexErr) {
+      // Index likely doesn't exist, which is good
+    }
     
     // Background Services
     startBlockchainListener();
@@ -156,7 +169,6 @@ const connectDB = async () => {
 
   } catch (err) {
     console.error("Database Connection failed:", err.message);
-    // Retry connection every 5 seconds
     setTimeout(connectDB, 5000);
   }
 };
