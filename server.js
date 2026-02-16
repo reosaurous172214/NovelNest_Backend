@@ -31,6 +31,7 @@ import errorHandler from "./middleware/errorMiddleware.js";
 
 dotenv.config();
 const app = express();
+app.set("trust proxy", 1);
 
 /* ================= PRE-MIDDLEWARE ================= */
 
