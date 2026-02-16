@@ -151,12 +151,7 @@ const connectDB = async () => {
     console.log("MongoDB connected 🚀");
 
     // CRITICAL: Drop problematic wallet index that crashes OTP/Registration
-    try {
-      await User.collection.dropIndex("wallet_1");
-      console.log("Cleaned up conflicting wallet index.");
-    } catch (indexErr) {
-      // Index likely doesn't exist, which is good
-    }
+    
     
     // Background Services
     startBlockchainListener();
