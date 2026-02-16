@@ -36,7 +36,7 @@ const app = express();
 
 // 1. Stripe Webhook (Must be before express.json() to maintain raw body)
 app.post(
-  "/api/payments/webhook",
+  "/api/webhook",
   express.raw({ type: "application/json" }),
   stripeWebhook,
 );
