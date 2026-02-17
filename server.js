@@ -77,7 +77,7 @@ app.use(express.urlencoded({ extended: true }));
 /* ================= PASSPORT & SESSION ================= */
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "novelhub_secret_key",
+    secret: process.env.SESSION_SECRET || "novelnest_secret_key",
     resave: false,
     saveUninitialized: false,
     cookie: {

@@ -1,22 +1,29 @@
-import nodemailer from 'nodemailer';
+import Brevo from "@getbrevo/brevo";
+
+const apiInstance = new Brevo.TransactionalEmailsApi();
+
+apiInstance.setApiKey(
+  Brevo.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+);
 
 const sendEmail = async (options) => {
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_APP_PASS 
-    }
-  });
+  try {
+    const response = await apiInstance.sendTransacEmail({
+      sender: {
+        email: "novelnest1369@gmail.com",
+        name: "NovelNest",
+      },
+      to: [{ email: options.email }],
+      subject: options.subject,
+      htmlContent: options.html,
+    });
 
-  const mailOptions = {
-    from: `"NovelHub" <${process.env.EMAIL_USER}>`,
-    to: options.email,
-    subject: options.subject,
-    html: options.html,
-  };
-
-  await transporter.sendMail(mailOptions);
+    return response;
+  } catch (error) {
+    console.error("Brevo Email Error:", error.response?.body || error.message);
+    throw new Error("Email sending failed");
+  }
 };
 
 export default sendEmail;
