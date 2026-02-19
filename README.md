@@ -1,95 +1,144 @@
-# 📚 NovelHub Backend | Archive Core
-> **Status:** Operational 🟢 | **Version:** 1.0.0
-
-This is the central intelligence node for the NovelHub platform. It manages user authentication, novel metadata, and the high-performance chapter archival system.
-
----
-
-### 🛠 Tech Stack
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
-![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)
-![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)
-![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
-
----
-
-### 📡 API Architecture
-The system follows a strict **MVC (Model-View-Controller)** pattern to ensure scalability and clean separation of concerns.
 
 
+<h1 style="color:#2c3e50;">📚 NovelHub Backend | Archive Core</h1>
+<p><strong>Status:</strong> Operational 🟢 | <strong>Version:</strong> 1.0.0</p>
+<p><strong>Live Demo:</strong> <a href="https://novelhub.example.com" target="_blank" style="color:#2980b9; text-decoration:none;">Click here to access</a></p>
 
-[Image of MVC architecture diagram for web applications]
+<p>NovelHub Backend is the central intelligence node of the platform. It manages user authentication, novel metadata, and a high-performance chapter archival system, providing seamless access to readers and developers alike.</p>
 
+<hr style="margin:30px 0; border:0; border-top:2px solid #eee;">
+
+<h2 style="color:#2c3e50;">🛠 Tech Stack</h2>
+<p>
+<img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js">
+<img src="https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express.js">
+<img src="https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB">
+<img src="https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white" alt="JWT">
+</p>
+
+<hr style="margin:30px 0; border:0; border-top:2px solid #eee;">
+
+<h2 style="color:#2c3e50;">📡 API Architecture</h2>
+<p>The system is built using a strict <strong>MVC (Model-View-Controller)</strong> pattern to ensure modularity, scalability, and maintainable code.</p>
+<p>[Insert MVC Architecture Diagram Here]</p>
 
 <details>
-<summary>🔐 <b>Authentication Endpoints</b> (Click to expand)</summary>
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | Create a new user node |
-| `POST` | `/api/auth/login` | Authenticate and receive JWT |
+<summary style="cursor:pointer; font-weight:bold; margin:10px 0;">🔐 Authentication Endpoints</summary>
+<table style="width:100%; border-collapse:collapse; margin:10px 0;">
+<thead>
+<tr style="background-color:#2c3e50; color:white;">
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Method</th>
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Endpoint</th>
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="border:1px solid #ddd; padding:10px;">POST</td>
+<td style="border:1px solid #ddd; padding:10px;">/api/auth/register</td>
+<td style="border:1px solid #ddd; padding:10px;">Create a new user account</td>
+</tr>
+<tr>
+<td style="border:1px solid #ddd; padding:10px;">POST</td>
+<td style="border:1px solid #ddd; padding:10px;">/api/auth/login</td>
+<td style="border:1px solid #ddd; padding:10px;">Authenticate user and return JWT</td>
+</tr>
+</tbody>
+</table>
 </details>
 
 <details>
-<summary>📖 <b>Novels & Archive Endpoints</b> (Click to expand)</summary>
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/novels` | Fetch all novels (Supports search/filter) |
-| `GET` | `/api/novels/:id` | Get detailed dossier for a specific novel |
-| `GET` | `/api/chapters/:novelId/num/:num` | Retrieve specific chapter data |
+<summary style="cursor:pointer; font-weight:bold; margin:10px 0;">📖 Novels & Archive Endpoints</summary>
+<table style="width:100%; border-collapse:collapse; margin:10px 0;">
+<thead>
+<tr style="background-color:#2c3e50; color:white;">
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Method</th>
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Endpoint</th>
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="border:1px solid #ddd; padding:10px;">GET</td>
+<td style="border:1px solid #ddd; padding:10px;">/api/novels</td>
+<td style="border:1px solid #ddd; padding:10px;">Fetch all novels (supports search/filter)</td>
+</tr>
+<tr>
+<td style="border:1px solid #ddd; padding:10px;">GET</td>
+<td style="border:1px solid #ddd; padding:10px;">/api/novels/:id</td>
+<td style="border:1px solid #ddd; padding:10px;">Get detailed information for a specific novel</td>
+</tr>
+<tr>
+<td style="border:1px solid #ddd; padding:10px;">GET</td>
+<td style="border:1px solid #ddd; padding:10px;">/api/chapters/:novelId/num/:num</td>
+<td style="border:1px solid #ddd; padding:10px;">Retrieve a specific chapter</td>
+</tr>
+</tbody>
+</table>
 </details>
 
 <details>
-<summary>👤 <b>User Library & History</b> (Click to expand)</summary>
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/lib/history/:novelId/last/:num` | Sync reading progress (Authorized only) |
+<summary style="cursor:pointer; font-weight:bold; margin:10px 0;">👤 User Library & History</summary>
+<table style="width:100%; border-collapse:collapse; margin:10px 0;">
+<thead>
+<tr style="background-color:#2c3e50; color:white;">
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Method</th>
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Endpoint</th>
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="border:1px solid #ddd; padding:10px;">POST</td>
+<td style="border:1px solid #ddd; padding:10px;">/api/lib/history/:novelId/last/:num</td>
+<td style="border:1px solid #ddd; padding:10px;">Sync reading progress (Authorized users only)</td>
+</tr>
+</tbody>
+</table>
 </details>
 
----
+<hr style="margin:30px 0; border:0; border-top:2px solid #eee;">
 
-### 🚀 Local Deployment
+<h2 style="color:#2c3e50;">🚀 Local Deployment</h2>
 
-**1. Clone the Node**
-```bash
-git clone [https://github.com/reosaurous172214/NovelNest_Backend.git](https://github.com/reosaurous172214/NovelNest_Backend.git)
+<h3 style="color:#34495e;">1. Clone the Repository</h3>
+<pre style="background-color:#2d2d2d; color:#f8f8f2; padding:15px; border-radius:8px; overflow-x:auto;">
+git clone https://github.com/SaurabhSharma1369/NovelNest_Backend.git
 cd NovelNest_Backend
-```
-**2. Initialize Dependencies**
+</pre>
 
-```bash
-
+<h3 style="color:#34495e;">2. Install Dependencies</h3>
+<pre style="background-color:#2d2d2d; color:#f8f8f2; padding:15px; border-radius:8px; overflow-x:auto;">
 npm install
-```
-***3. Configure Environment Create a .env file in the root directory. Do not commit this file to GitHub.***
+</pre>
 
-Code snippet
-```bash
+<h3 style="color:#34495e;">3. Configure Environment</h3>
+<p>Create a <code>.env</code> file in the root directory (do not commit it):</p>
+<pre style="background-color:#2d2d2d; color:#f8f8f2; padding:15px; border-radius:8px; overflow-x:auto;">
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_secret_key
-```
-***4. Boot System***
-```bash
+</pre>
 
+<h3 style="color:#34495e;">4. Start the Server</h3>
+<pre style="background-color:#2d2d2d; color:#f8f8f2; padding:15px; border-radius:8px; overflow-x:auto;">
 npm start
-```
-# Development mode (Nodemon)
-```bash
+</pre>
+
+<h3 style="color:#34495e;">Development Mode (Nodemon)</h3>
+<pre style="background-color:#2d2d2d; color:#f8f8f2; padding:15px; border-radius:8px; overflow-x:auto;">
 npm run dev
-```
-***⚠️ Security Protocols***
-```bash
-JWT Encryption: All sensitive routes require a valid Bearer token in the Authorization header.
+</pre>
 
-Bcrypt Hashing: User passwords are encrypted with a 10-round salt before database entry.
+<h3 style="color:#34495e;">⚠️ Security Protocols</h3>
+<ul style="margin-left:20px;">
+<li><strong>JWT Encryption:</strong> All sensitive routes require a valid Bearer token in the Authorization header.</li>
+<li><strong>Bcrypt Hashing:</strong> User passwords are encrypted with a 10-round salt before database entry.</li>
+<li><strong>CORS Policy:</strong> Only authorized frontend domains can access the backend to prevent unauthorized cross-origin requests.</li>
+</ul>
 
-CORS Policy: Access restricted to authorized frontend domains to prevent unauthorized cross-origin requests.
-```
-***📂 Directory Structure***
-```
+<h3 style="color:#34495e;">📂 Directory Structure</h3>
+<pre style="background-color:#2d2d2d; color:#f8f8f2; padding:15px; border-radius:8px; overflow-x:auto;">
 backend/
 ├── controllers/    # Request handling logic
 ├── models/         # Database schemas (Mongoose)
@@ -97,5 +146,6 @@ backend/
 ├── middleware/     # Auth & Error handling
 ├── config/         # Database connection setup
 └── server.js       # Main entry point
-```
-Developed by Saurabh Sharma
+</pre>
+
+<p>Developed by <strong>Saurabh Sharma</strong></p>
