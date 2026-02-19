@@ -1,8 +1,8 @@
 
 
-<h1 style="color:#2c3e50;">📚 NovelHub Backend | Archive Core</h1>
+<h1 style="color:#2c3e50;">📚 NovelHub Backend </h1>
 <p><strong>Status:</strong> Operational 🟢 | <strong>Version:</strong> 1.0.0</p>
-<p><strong>Live Demo:</strong> <a href="https://novelhub.example.com" target="_blank" style="color:#2980b9; text-decoration:none;">Click here to access</a></p>
+<p><strong>Live Demo:</strong> <a href="https://novel-nest-frontend-yg2s.vercel.app/" target="_blank" style="color:#2980b9; text-decoration:none;">Click here to access</a></p>
 
 <p>NovelHub Backend is the central intelligence node of the platform. It manages user authentication, novel metadata, and a high-performance chapter archival system, providing seamless access to readers and developers alike.</p>
 
@@ -149,3 +149,4 @@ backend/
 </pre>
 
 <p>Developed by <strong>Saurabh Sharma</strong></p>
+
